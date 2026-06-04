@@ -1,0 +1,4 @@
+// Rendered at container start by docker-entrypoint.d/40-pacs-viewer-config.sh
+// (envsubst over $DICOMWEB_ROOT) -> /usr/share/nginx/html/medisync-runtime.js.
+// Overrides the dev default baked from src/medisync-runtime.js.
+window.MEDISYNC_DICOMWEB_ROOT = "${DICOMWEB_ROOT}";

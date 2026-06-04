@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+# Dual-target build for pacs-viewer (OHIF, prebuilt — customized by injection).
+#
+#   CDN (static):   docker build -f Dockerfile.railway --target export --output type=local,dest=./dist .
+#   Railway / dev:  docker build -f Dockerfile.railway .            (builds the 'serve' stage, the default last stage)
+#
+# Same static site either way; only the SERVING layer differs (CDN vs nginx).
+
+# ---- customize: apply LinkRad/Medisync overrides onto OHIF's built SPA ----
+FROM ohif/app:v3.8.3 AS customize
+USER root
+COPY src/ohif-config.js      /usr/share/nginx/html/app-config.js
+COPY src/medisync-runtime.js /usr/share/nginx/html/medisync-runtime.js
+COPY src/medisync-auth.js    /usr/share/nginx/html/medisync-auth.js
+COPY src/medisync-extras.js  /usr/share/nginx/html/medisync-extras.js
+COPY src/medisync-toolbar.js /usr/share/nginx/html/medisync-toolbar.js
+RUN sed -i 's|<head>|<head><script src="/medisync-runtime.js"></script><script src="/medisync-auth.js"></script>|' /usr/share/nginx/html/index.html \
+ && sed -i 's|</body>|<script src="/medisync-extras.js"></script><script src="/medisync-toolbar.js"></script></body>|' /usr/share/nginx/html/index.html \
+ && sed -i 's|<title>OHIF Viewer</title>|<title>Medisync PACS Viewer</title>|' /usr/share/nginx/html/index.html
+
+# ---- export: static files only (for CDN upload) ----
+FROM scratch AS export
+COPY --from=customize /usr/share/nginx/html/ /
+
+# ---- serve: nginx serving the static SPA (Railway / local dev) ----
+FROM nginx:1.27-alpine AS serve
+# DICOMweb endpoint (cross-origin to pacs-dicomweb-proxy) rendered into
+# /medisync-runtime.js at container start so one image serves every env.
+ENV PORT=8080
+ENV DICOMWEB_ROOT=http://localhost:8080/wado
+# Only PORT is substituted into the nginx config; runtime.js is handled separately.
+ENV NGINX_ENVSUBST_FILTER=^(PORT)$
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY medisync-runtime.js.template /etc/pacs-viewer/medisync-runtime.js.template
+COPY docker-entrypoint.d/40-pacs-viewer-config.sh /docker-entrypoint.d/40-pacs-viewer-config.sh
+RUN chmod +x /docker-entrypoint.d/40-pacs-viewer-config.sh
+COPY --from=customize /usr/share/nginx/html /usr/share/nginx/html
+EXPOSE 8080

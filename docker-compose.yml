@@ -1,0 +1,18 @@
+# Local dev — runs the SAME nginx 'serve' image as Railway (parity), config via
+# env. (Prod CDN path is separate: build.ps1 -> dist -> deploy/.)
+#
+#   docker compose up -d --build   ->  http://localhost:3000
+services:
+  viewer:
+    build:
+      context: .
+      dockerfile: Dockerfile.railway
+      target: serve
+    image: medisync-pacs-viewer
+    container_name: medisync-pacs-viewer
+    ports:
+      - "3000:8080"
+    environment:
+      # Browser-reachable DICOMweb endpoint = pacs-dicomweb-proxy (cross-origin).
+      DICOMWEB_ROOT: "http://localhost:8080/wado"
+    restart: unless-stopped

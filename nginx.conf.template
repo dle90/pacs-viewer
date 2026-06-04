@@ -1,0 +1,40 @@
+# pacs-viewer server (Railway / local dev). Serves the static OHIF SPA.
+# Rendered at start: nginx envsubst over ${PORT} (only). Mirrors what a CDN must
+# do in the static-deploy path (see deploy/HEADERS.md) — same headers + fallback.
+server {
+    listen ${PORT};
+    listen [::]:${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # COOP/COEP → cross-origin isolation so Cornerstone3D can use SharedArrayBuffer
+    # (MPR/3D). CORP cross-origin so this viewer can be embedded as an iframe in
+    # the RIS (his-web), which sets COEP: require-corp.
+    add_header Cross-Origin-Opener-Policy   "same-origin"  always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+    add_header Cross-Origin-Resource-Policy "cross-origin" always;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/wasm;
+
+    # NO /wado proxy — cross-origin model: OHIF calls pacs-dicomweb-proxy directly
+    # at window.MEDISYNC_DICOMWEB_ROOT (see medisync-runtime.js). Viewer = static only.
+
+    # Mutable files (runtime config + injected scripts + index) — never cache, so a
+    # redeploy / env change is picked up. Everything else is content-hashed below.
+    location ~ ^/(index\.html|app-config\.js|medisync-runtime\.js|medisync-auth\.js|medisync-extras\.js|medisync-toolbar\.js)$ {
+        add_header Cache-Control "no-cache" always;
+        add_header Cross-Origin-Opener-Policy   "same-origin"  always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+    }
+
+    # SPA fallback — client-side routing serves index.html for any route.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

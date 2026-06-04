@@ -1,0 +1,14 @@
+# Static build output (produced by build.ps1 / build.sh)
+dist/
+
+node_modules/
+*.log
+.env
+.env.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

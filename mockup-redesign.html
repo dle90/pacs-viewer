@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Medisync Viewer — Redesign Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; }
+    .icon-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 4px; cursor: pointer;
+      color: #cbd5e1;
+      transition: background 0.1s;
+      position: relative;
+    }
+    .icon-btn:hover { background: #334155; color: #e2e8f0; }
+    .icon-btn.active { background: #0e7490; color: #fff; }
+    .icon-btn[data-tip]:hover::after {
+      content: attr(data-tip);
+      position: absolute; top: 36px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #e2e8f0; padding: 4px 8px; border-radius: 4px;
+      font-size: 11px; white-space: nowrap; z-index: 100;
+      border: 1px solid #334155;
+    }
+    .toolbar-divider { width: 1px; height: 22px; background: #334155; margin: 0 6px; }
+    .group-label {
+      font-size: 10px; color: #5acce6; font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .mode-tab {
+      padding: 6px 14px; cursor: pointer; font-size: 12px;
+      border-radius: 4px; color: #94a3b8;
+      transition: background 0.1s;
+    }
+    .mode-tab:hover { background: #334155; color: #e2e8f0; }
+    .mode-tab.active { background: #5acce6; color: #0f172a; font-weight: 600; }
+    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 10px; }
+    .panel-title { font-size: 11px; color: #5acce6; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+    .layout-btn {
+      width: 36px; height: 36px;
+      border: 1px solid #334155; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 12px;
+    }
+    .layout-btn:hover { border-color: #5acce6; }
+    .layout-btn.active { border-color: #5acce6; background: #0e7490; }
+    .check-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; cursor: pointer; }
+    .check-row input { accent-color: #5acce6; }
+    .pill-btn {
+      padding: 6px 10px; font-size: 11px;
+      border: 1px solid #334155; border-radius: 4px;
+      background: #0f172a; color: #cbd5e1;
+      cursor: pointer; transition: all 0.1s;
+    }
+    .pill-btn:hover { border-color: #5acce6; }
+    .pill-btn.active { background: #0e7490; border-color: #5acce6; color: #fff; }
+    .annot-card {
+      background: #fef3c7; color: #78350f;
+      border-left: 4px solid #f59e0b; padding: 12px 16px;
+      border-radius: 4px; font-size: 13px; line-height: 1.5;
+    }
+    .annot-card strong { color: #451a03; }
+    .compare-row { background: #f8fafc; padding: 16px; border-radius: 6px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+
+<div class="max-w-[1400px] mx-auto p-6 space-y-6">
+
+  <!-- Header -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h1 class="text-2xl font-bold text-slate-800">Medisync Viewer — Redesign Mockup</h1>
+    <p class="text-sm text-slate-600 mt-1">
+      Interactive layout proposal. Click the 2D / MPR / 3D tabs to see how the right sidebar specializes per mode.
+      Use the study type switcher below to see the Mammo workflow. Hover any toolbar icon for tooltip.
+    </p>
+    <div class="mt-3 flex items-center gap-2">
+      <span class="text-xs text-slate-500 uppercase tracking-wide">Đang xem ca:</span>
+      <button id="study-ct" class="pill-btn active" onclick="setStudy('ct')" style="background:#0e7490;border-color:#5acce6;color:#fff;">CT Sọ não (modality: CT)</button>
+      <button id="study-mg" class="pill-btn" onclick="setStudy('mg')">Mammo 2 bên (modality: MG)</button>
+      <span class="text-xs text-slate-400 ml-2">Tab modes thay đổi theo modality của ca chụp</span>
+    </div>
+  </div>
+
+  <!-- The mockup viewer itself -->
+  <div class="bg-slate-900 rounded-lg overflow-hidden shadow-2xl border border-slate-700" style="height: 720px; display: flex; flex-direction: column;">
+
+    <!-- ==================== TOP TOOLBAR ==================== -->
+    <div class="bg-slate-800 border-b border-slate-700 flex items-center px-3 py-2 gap-1" style="min-height: 48px;">
+
+      <!-- Logo + back -->
+      <div class="flex items-center gap-2 mr-2">
+        <button class="icon-btn" data-tip="Quay lại danh sách">←</button>
+        <span id="header-title" class="text-cyan-400 font-bold tracking-wide text-sm">MEDISYNC PACS</span>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Mode tabs (2D / MPR / 3D) — visible only for volumetric modalities -->
+      <div id="mode-tabs" class="flex items-center gap-1">
+        <div class="mode-tab active" data-mode="2d" onclick="switchMode('2d')">2D</div>
+        <div class="mode-tab" data-mode="mpr" onclick="switchMode('mpr')">MPR</div>
+        <div class="mode-tab" data-mode="3d" onclick="switchMode('3d')">3D</div>
+      </div>
+
+      <!-- For MG: replace tabs with a static "Mammo Viewer" label (Option A) -->
+      <div id="mammo-label" class="hidden text-pink-300 font-semibold tracking-wide text-sm px-2">
+        Mammo Viewer
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Display tools (mouse-mode) -->
+      <button class="icon-btn active" data-tip="Con trỏ (Esc)">↖</button>
+      <button class="icon-btn" data-tip="W/L · Cửa sổ (W)">☀</button>
+      <button class="icon-btn" data-tip="Pan · Di chuyển (Z)">✥</button>
+      <button class="icon-btn" data-tip="Zoom · Phóng (M)">🔍</button>
+      <button class="icon-btn" data-tip="Magnify · Kính lúp">⊕</button>
+      <button class="icon-btn" data-tip="Probe · Đo điểm">⊙</button>
+      <button class="icon-btn" data-tip="Crosshairs · Đường tham chiếu">✛</button>
+      <button class="icon-btn" data-tip="Reset · Đặt lại (Space)">↻</button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Measurement tools -->
+      <button class="icon-btn" data-tip="Length · Đo chiều dài (L)">📏</button>
+      <button class="icon-btn" data-tip="Angle · Đo góc (A)">∠</button>
+      <button class="icon-btn" data-tip="Bidirectional · Đo hai chiều (B)">⊞</button>
+      <button class="icon-btn" data-tip="ROI ▾ (vùng quan tâm)">○▾</button>
+      <button class="icon-btn" data-tip="Annotate · Ghi chú (T)">T</button>
+      <button class="icon-btn" data-tip="Specialty ▾ (CTR · Cobb · Spine)">⚕▾</button>
+      <button class="icon-btn" data-tip="Undo · Hoàn tác (Ctrl+Z)">↶</button>
+      <button class="icon-btn" data-tip="Delete · Xóa (Del)" style="color:#ef4444;">✕</button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Image transforms (one-shot) -->
+      <button class="icon-btn" data-tip="Rotate CW · Xoay phải (R)">↻</button>
+      <button class="icon-btn" data-tip="Rotate CCW · Xoay trái (Shift+R)">↺</button>
+      <button class="icon-btn" data-tip="Flip H · Lật ngang (H)">⇌</button>
+      <button class="icon-btn" data-tip="Flip V · Lật dọc (V)">⇅</button>
+      <button class="icon-btn" data-tip="Invert · Đảo màu (I)">◐</button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Layout / sync / playback -->
+      <button class="icon-btn" data-tip="Layout · Bố cục ▾">▦</button>
+      <button class="icon-btn" data-tip="Sync · Đồng bộ (S)">⇆</button>
+      <button class="icon-btn" data-tip="Cine · Phát ảnh (Shift+P)">▶</button>
+
+      <div class="flex-1"></div>
+
+      <!-- Output / metadata -->
+      <button class="icon-btn" data-tip="Capture · Chụp màn hình">📷</button>
+      <button class="icon-btn" data-tip="Save · Lưu phép đo">💾</button>
+      <button class="icon-btn" data-tip="DICOM Tags · Thẻ DICOM">ⓘ</button>
+      <button class="icon-btn" data-tip="More · Thêm ▾">⋯</button>
+
+      <div class="toolbar-divider"></div>
+
+      <button class="icon-btn" data-tip="Đăng xuất">👤</button>
+    </div>
+
+    <!-- ==================== MAIN AREA ==================== -->
+    <div class="flex-1 flex" style="min-height: 0;">
+
+      <!-- LEFT SIDEBAR -->
+      <div class="bg-slate-800 border-r border-slate-700 flex flex-col" style="width: 200px;">
+
+        <!-- ===== CT study left content ===== -->
+        <div data-study="ct" class="flex-1 flex flex-col">
+          <div class="p-3 border-b border-slate-700">
+            <div class="text-xs text-cyan-400 font-semibold tracking-wide uppercase mb-2">Bệnh nhân</div>
+            <div class="text-sm text-slate-200 font-medium">Nguyễn Văn A</div>
+            <div class="text-xs text-slate-400 mt-0.5">BN-20240429 · Nam · 060Y</div>
+            <div class="text-xs text-slate-400 mt-2">CT Sọ não — 2026-04-29</div>
+          </div>
+          <div class="p-3 border-b border-slate-700">
+            <div class="text-xs text-cyan-400 font-semibold tracking-wide uppercase mb-2">Chuỗi ảnh (4)</div>
+            <div class="space-y-1.5">
+              <div class="bg-slate-700 rounded p-2 border border-cyan-500 text-xs">
+                <div class="text-slate-200">1 · Axial T1</div>
+                <div class="text-slate-400 mt-0.5">120 ảnh · 5mm</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">2 · Axial T2</div>
+                <div class="text-slate-500 mt-0.5">120 ảnh · 5mm</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">3 · Coronal FLAIR</div>
+                <div class="text-slate-500 mt-0.5">80 ảnh · 4mm</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">4 · Sagittal T1</div>
+                <div class="text-slate-500 mt-0.5">80 ảnh · 4mm</div>
+              </div>
+            </div>
+          </div>
+          <div class="p-3 flex-1 overflow-y-auto">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs text-cyan-400 font-semibold tracking-wide uppercase">Ca chụp cũ (3)</div>
+              <button class="text-xs text-slate-500 hover:text-slate-300">▾</button>
+            </div>
+            <div class="space-y-1.5">
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-cyan-300 font-medium">2025-10-12 <span class="float-right text-slate-500">CT</span></div>
+                <div class="text-slate-400 mt-0.5">CT Sọ não</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-cyan-300 font-medium">2024-06-03 <span class="float-right text-slate-500">MR</span></div>
+                <div class="text-slate-400 mt-0.5">MRI Sọ não</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-cyan-300 font-medium">2023-08-14 <span class="float-right text-slate-500">CR</span></div>
+                <div class="text-slate-400 mt-0.5">XQ Ngực thẳng</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== MG study left content ===== -->
+        <div data-study="mg" class="hidden flex-1 flex flex-col">
+          <div class="p-3 border-b border-slate-700">
+            <div class="text-xs text-pink-300 font-semibold tracking-wide uppercase mb-2">Bệnh nhân</div>
+            <div class="text-sm text-slate-200 font-medium">Mã Hồng Thư</div>
+            <div class="text-xs text-slate-400 mt-0.5">01LRCM030624 · Nữ · 048Y</div>
+            <div class="text-xs text-slate-400 mt-2">Mammo 2 bên — 2024-06-03</div>
+          </div>
+          <div class="p-3 border-b border-slate-700">
+            <div class="text-xs text-pink-300 font-semibold tracking-wide uppercase mb-2">Ảnh (8)</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <div class="bg-slate-700 rounded p-1.5 border border-pink-400 text-[10px]">
+                <div class="text-slate-200">RCC</div>
+                <div class="text-slate-400">RAW · sub1</div>
+              </div>
+              <div class="bg-slate-700 rounded p-1.5 border border-pink-400 text-[10px]">
+                <div class="text-slate-200">LCC</div>
+                <div class="text-slate-400">RAW · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">RMLO</div>
+                <div class="text-slate-500">RAW · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">LMLO</div>
+                <div class="text-slate-500">RAW · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">RCC</div>
+                <div class="text-slate-500">PROC · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">LCC</div>
+                <div class="text-slate-500">PROC · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">RMLO</div>
+                <div class="text-slate-500">PROC · sub1</div>
+              </div>
+              <div class="bg-slate-900 rounded p-1.5 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500">
+                <div class="text-slate-300">LMLO</div>
+                <div class="text-slate-500">PROC · sub1</div>
+              </div>
+            </div>
+          </div>
+          <div class="p-3 flex-1 overflow-y-auto">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs text-pink-300 font-semibold tracking-wide uppercase">Ca chụp cũ (2)</div>
+              <button class="text-xs text-slate-500 hover:text-slate-300">▾</button>
+            </div>
+            <div class="space-y-1.5">
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-pink-300 font-medium">2023-04-15 <span class="float-right text-slate-500">MG</span></div>
+                <div class="text-slate-400 mt-0.5">Mammo tầm soát</div>
+              </div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
+                <div class="text-pink-300 font-medium">2022-04-08 <span class="float-right text-slate-500">MG</span></div>
+                <div class="text-slate-400 mt-0.5">Mammo tầm soát</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- VIEWPORT -->
+      <div class="flex-1 bg-black flex flex-col" style="min-width: 0;">
+
+        <!-- ===== CT viewport ===== -->
+        <div data-study="ct" class="flex-1 grid grid-cols-2 gap-0.5 p-0.5">
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-600 text-xs relative">
+            <div class="absolute top-2 left-2 text-cyan-400 text-xs">Axial T1 · 60/120</div>
+            <div class="absolute top-2 right-2 text-slate-500 text-xs">W:80 L:40</div>
+            <div class="absolute bottom-2 left-2 text-slate-500 text-xs">5mm · 0.7×0.7</div>
+            <div class="opacity-30 text-7xl">⊙</div>
+            <div class="absolute bottom-2 right-2 text-slate-500 text-xs">L</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-600 text-xs relative">
+            <div class="absolute top-2 left-2 text-cyan-400 text-xs">Axial T1 (prior 2025-10-12)</div>
+            <div class="absolute top-2 right-2 text-slate-500 text-xs">W:80 L:40</div>
+            <div class="opacity-20 text-7xl">⊙</div>
+            <div class="absolute bottom-2 right-2 text-slate-500 text-xs">L</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-600 text-xs relative">
+            <div class="absolute top-2 left-2 text-cyan-400 text-xs">Axial T2 · 60/120</div>
+            <div class="opacity-20 text-7xl">⊙</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-600 text-xs relative">
+            <div class="absolute top-2 left-2 text-cyan-400 text-xs">Coronal FLAIR · 40/80</div>
+            <div class="opacity-20 text-7xl">⊙</div>
+          </div>
+        </div>
+
+        <!-- ===== MG viewport (4-on-1 mammo hanging) ===== -->
+        <!-- ACR convention: chestwall outside, nipples pointing in. CC top, MLO bottom. -->
+        <div data-study="mg" class="hidden flex-1 grid grid-cols-2 gap-0.5 p-0.5">
+          <!-- Top row: RCC | LCC (mirrored — chestwall on outside) -->
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-end text-slate-600 text-xs relative pr-12">
+            <div class="absolute top-2 left-2 text-pink-300 text-xs">RCC · RAW</div>
+            <div class="absolute top-2 right-2 text-slate-500 text-xs">W:32768 L:16384</div>
+            <div class="absolute bottom-2 left-2 text-slate-500 text-xs">100% · 1:1px</div>
+            <div class="absolute bottom-2 right-2 text-pink-200 text-xs">R</div>
+            <div class="opacity-30 text-6xl">◗</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-start text-slate-600 text-xs relative pl-12">
+            <div class="absolute top-2 left-2 text-pink-300 text-xs">LCC · RAW</div>
+            <div class="absolute top-2 right-2 text-slate-500 text-xs">W:32768 L:16384</div>
+            <div class="absolute bottom-2 left-2 text-pink-200 text-xs">L</div>
+            <div class="opacity-30 text-6xl">◖</div>
+          </div>
+          <!-- Bottom row: RMLO | LMLO -->
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-end text-slate-600 text-xs relative pr-12">
+            <div class="absolute top-2 left-2 text-pink-300 text-xs">RMLO · RAW</div>
+            <div class="absolute bottom-2 right-2 text-pink-200 text-xs">R</div>
+            <div class="opacity-25 text-6xl">◗</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 flex items-center justify-start text-slate-600 text-xs relative pl-12">
+            <div class="absolute top-2 left-2 text-pink-300 text-xs">LMLO · RAW</div>
+            <div class="absolute bottom-2 left-2 text-pink-200 text-xs">L</div>
+            <div class="opacity-25 text-6xl">◖</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT SIDEBAR -->
+      <div class="bg-slate-800 border-l border-slate-700 overflow-y-auto" style="width: 240px;">
+
+        <!-- ===== 2D MODE PANEL ===== -->
+        <div data-panel="2d" class="p-3 space-y-3">
+          <div>
+            <div class="panel-title">W/L Presets</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="pill-btn active" title="80/40">Não</button>
+              <button class="pill-btn" title="2500/480">Xương</button>
+              <button class="pill-btn" title="1500/-600">Phổi</button>
+              <button class="pill-btn" title="400/50">Mô mềm</button>
+              <button class="pill-btn" title="350/50">Trung thất</button>
+              <button class="pill-btn" title="600/170">Mạch</button>
+            </div>
+            <div class="text-xs text-slate-500 mt-1.5">Phím tắt: 1–9 · Tùy chỉnh</div>
+          </div>
+
+          <div>
+            <div class="panel-title">Bố cục</div>
+            <div class="text-xs text-slate-400 mb-1">Chuỗi (Series)</div>
+            <div class="flex gap-1 mb-2">
+              <div class="layout-btn">▭</div>
+              <div class="layout-btn">▭▭</div>
+              <div class="layout-btn active">⊞</div>
+              <div class="layout-btn">▦</div>
+            </div>
+            <div class="text-xs text-slate-400 mb-1">Ảnh trong chuỗi</div>
+            <div class="flex gap-1">
+              <div class="layout-btn active">▭</div>
+              <div class="layout-btn">▭▭</div>
+              <div class="layout-btn">⊞</div>
+              <div class="layout-btn">▦</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title">Đồng bộ ca chụp</div>
+            <label class="check-row">
+              <input type="checkbox" checked> Cuộn theo vị trí (mm)
+            </label>
+            <label class="check-row">
+              <input type="checkbox"> Cuộn theo số ảnh
+            </label>
+            <label class="check-row">
+              <input type="checkbox"> Đồng bộ W/L
+            </label>
+            <label class="check-row">
+              <input type="checkbox"> Đồng bộ Zoom/Pan
+            </label>
+          </div>
+
+          <div>
+            <div class="panel-title">Cine</div>
+            <div class="flex items-center gap-2">
+              <button class="icon-btn">⏮</button>
+              <button class="icon-btn">▶</button>
+              <button class="icon-btn">⏭</button>
+              <select class="bg-slate-900 border border-slate-700 rounded text-xs px-2 py-1 ml-auto">
+                <option>10 FPS</option><option>15 FPS</option><option>24 FPS</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== MPR MODE PANEL ===== -->
+        <div data-panel="mpr" class="p-3 space-y-3 hidden">
+          <div>
+            <div class="panel-title">Slab mode</div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button class="pill-btn active">MPR</button>
+              <button class="pill-btn">MIP</button>
+              <button class="pill-btn">MinIP</button>
+              <button class="pill-btn">AIP</button>
+              <button class="pill-btn">VR</button>
+              <button class="pill-btn">Slab</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title">Slab thickness</div>
+            <input type="range" min="1" max="50" value="5" class="w-full accent-cyan-500">
+            <div class="text-xs text-slate-400 mt-1">5 mm</div>
+          </div>
+
+          <div>
+            <div class="panel-title">Tùy chọn</div>
+            <label class="check-row"><input type="checkbox" checked> Crossline tham chiếu</label>
+            <label class="check-row"><input type="checkbox" checked> Đồng bộ xoay</label>
+            <label class="check-row"><input type="checkbox"> Khóa mặt phẳng</label>
+          </div>
+
+          <div>
+            <div class="panel-title">CPR <span class="text-xs text-amber-400 font-normal normal-case ml-1">(Phase 2)</span></div>
+            <button class="pill-btn w-full opacity-50 cursor-not-allowed">Vẽ đường vessel</button>
+            <div class="text-xs text-slate-500 mt-2 leading-relaxed">
+              Curved Planar Reformation cho mạch máu — sẽ phát triển sau.
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 3D MODE PANEL ===== -->
+        <div data-panel="3d" class="p-3 space-y-3 hidden">
+          <div>
+            <div class="panel-title">Render preset</div>
+            <select class="w-full bg-slate-900 border border-slate-700 rounded text-xs px-2 py-1.5">
+              <option>CT-Bone</option>
+              <option>CT-Soft-Tissue</option>
+              <option>CT-AAA (mạch chủ)</option>
+              <option>CT-Lung</option>
+              <option>MR-Default</option>
+              <option>Custom...</option>
+            </select>
+          </div>
+
+          <div>
+            <div class="panel-title">Render mode</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="pill-btn active">VR</button>
+              <button class="pill-btn">MIP</button>
+              <button class="pill-btn">MinIP</button>
+              <button class="pill-btn opacity-50">SSD</button>
+            </div>
+            <div class="text-xs text-slate-500 mt-1.5">SSD sắp ra mắt</div>
+          </div>
+
+          <div>
+            <div class="panel-title">Định hướng</div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button class="pill-btn">Trước</button>
+              <button class="pill-btn">Sau</button>
+              <button class="pill-btn">Trái</button>
+              <button class="pill-btn">Phải</button>
+              <button class="pill-btn">Trên</button>
+              <button class="pill-btn">Dưới</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title">Tùy chọn</div>
+            <label class="check-row"><input type="checkbox" checked> MPR Crossline</label>
+            <label class="check-row"><input type="checkbox"> Khung 3D Box</label>
+            <label class="check-row"><input type="checkbox"> Con trỏ 3D</label>
+            <label class="check-row"><input type="checkbox"> Xoay quanh con trỏ</label>
+          </div>
+
+          <div>
+            <div class="panel-title">3D Cutting <span class="text-xs text-amber-400 font-normal normal-case ml-1">(Phase 2)</span></div>
+            <div class="flex gap-1.5">
+              <button class="pill-btn flex-1 opacity-50">Cắt</button>
+              <button class="pill-btn flex-1 opacity-50">Reset</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title">Tách mô <span class="text-xs text-amber-400 font-normal normal-case ml-1">(Phase 2)</span></div>
+            <div class="text-xs text-slate-500 leading-relaxed">
+              Tự động loại bàn nằm, tách phổi/cơ quan — cần ML pipeline, sẽ phát triển sau.
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== MAMMO MODE PANEL ===== -->
+        <div data-panel="mammo" class="p-3 space-y-3 hidden">
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">Hanging Protocol</div>
+            <div class="text-xs text-slate-400 mb-1.5">Mammography 2D</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="pill-btn">CC</button>
+              <button class="pill-btn">MLO</button>
+              <button class="pill-btn active col-span-2">4-on-1 (RCC·LCC·RMLO·LMLO)</button>
+              <button class="pill-btn col-span-2">8-on-1 (current + prior)</button>
+              <button class="pill-btn">R CC/MLO</button>
+              <button class="pill-btn">L CC/MLO</button>
+            </div>
+            <div class="text-xs text-slate-400 mt-2.5 mb-1.5">Tomosynthesis (DBT)</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="pill-btn">TOMO CC</button>
+              <button class="pill-btn">TOMO MLO</button>
+              <button class="pill-btn col-span-2">TOMO 4-on-1</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">Image variant</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="pill-btn">RAW</button>
+              <button class="pill-btn active">PROC</button>
+            </div>
+            <div class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              RAW = ảnh gốc từ máy; PROC = đã CLAHE / xử lý nhà sản xuất.
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">Magnifier (vi vôi hóa)</div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button class="pill-btn">1.5×</button>
+              <button class="pill-btn active">2×</button>
+              <button class="pill-btn">4×</button>
+            </div>
+            <div class="text-xs text-slate-500 mt-1.5">Zoom mặc định: 1:1 pixel</div>
+          </div>
+
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">DBT Cine</div>
+            <div class="flex items-center gap-2">
+              <button class="icon-btn">⏮</button>
+              <button class="icon-btn">▶</button>
+              <button class="icon-btn">⏭</button>
+              <select class="bg-slate-900 border border-slate-700 rounded text-xs px-2 py-1 ml-auto">
+                <option>10 FPS</option><option>15 FPS</option><option>24 FPS</option>
+              </select>
+            </div>
+            <input type="range" min="1" max="80" value="40" class="w-full accent-pink-400 mt-2">
+            <div class="text-xs text-slate-400 mt-1">Slice 40/80</div>
+          </div>
+
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">Đồng bộ ca chụp cũ</div>
+            <label class="check-row"><input type="checkbox" checked> Khóa view khớp với prior</label>
+            <label class="check-row"><input type="checkbox" checked> Đồng bộ W/L</label>
+            <label class="check-row"><input type="checkbox"> Đồng bộ Zoom/Pan</label>
+          </div>
+
+          <div>
+            <div class="panel-title" style="color:#f9a8d4;">BI-RADS <span class="text-xs text-amber-400 font-normal normal-case ml-1">(Phase 2)</span></div>
+            <div class="text-xs text-slate-500 leading-relaxed">
+              Báo cáo có cấu trúc BI-RADS (mật độ, phát hiện, đánh giá cuối) — sẽ phát triển sau.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==================== STATUS BAR ==================== -->
+    <div class="bg-slate-800 border-t border-slate-700 px-3 py-1.5 flex items-center text-xs text-slate-400 gap-4">
+      <span><span class="text-slate-500">Slice:</span> 60/120</span>
+      <span><span class="text-slate-500">Vị trí:</span> +12.5 mm</span>
+      <span><span class="text-slate-500">W/L:</span> 80/40</span>
+      <span><span class="text-slate-500">Zoom:</span> 100%</span>
+      <span><span class="text-slate-500">HU:</span> +42</span>
+      <div class="flex-1"></div>
+      <span class="text-cyan-400">Công cụ: Con trỏ</span>
+    </div>
+
+  </div>
+
+  <!-- ==================== TABLET VIEW ==================== -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-xl font-bold text-slate-800 mb-1">Tablet view (~1024px landscape)</h2>
+    <p class="text-sm text-slate-600 mb-4">
+      <strong>Đối tượng:</strong> Bác sĩ chẩn đoán hình ảnh đọc trên iPad — review casual, dạy học, hội chẩn.
+      <strong>Không</strong> dùng cho primary diagnosis (cần monitor 3MP/5MP medical-grade).<br>
+      <strong>Khác desktop:</strong> sidebar thu gọn được (chỉ 1 sidebar mở mỗi lúc), toolbar dày touch-friendly,
+      mặc định 1 viewport (2×2 vẫn được nhưng cần mở rộng).
+    </p>
+
+    <!-- Tablet device frame -->
+    <div class="mx-auto" style="width: 1024px; max-width: 100%; border: 14px solid #1e293b; border-radius: 24px; overflow: hidden; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+      <div style="height: 768px; display: flex; flex-direction: column;">
+
+        <!-- Tablet toolbar (condensed) -->
+        <div class="bg-slate-800 border-b border-slate-700 flex items-center px-2 py-2 gap-0.5" style="min-height: 52px;">
+          <button class="icon-btn" data-tip="Menu / Series">☰</button>
+          <span class="text-cyan-400 font-bold text-xs ml-1">MEDISYNC</span>
+          <div class="toolbar-divider"></div>
+          <div class="flex items-center gap-1">
+            <div class="mode-tab active">2D</div>
+            <div class="mode-tab">MPR</div>
+            <div class="mode-tab">3D</div>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button class="icon-btn active" style="width:38px;height:38px;">↖</button>
+          <button class="icon-btn" style="width:38px;height:38px;">☀</button>
+          <button class="icon-btn" style="width:38px;height:38px;">✥</button>
+          <button class="icon-btn" style="width:38px;height:38px;">🔍</button>
+          <button class="icon-btn" style="width:38px;height:38px;">⊙</button>
+          <button class="icon-btn" style="width:38px;height:38px;">↻</button>
+          <div class="toolbar-divider"></div>
+          <button class="icon-btn" style="width:38px;height:38px;">📏</button>
+          <button class="icon-btn" style="width:38px;height:38px;">∠</button>
+          <button class="icon-btn" style="width:38px;height:38px;">○▾</button>
+          <button class="icon-btn" style="width:38px;height:38px;color:#ef4444;">✕</button>
+          <div class="toolbar-divider"></div>
+          <button class="icon-btn" style="width:38px;height:38px;">▦</button>
+          <button class="icon-btn" style="width:38px;height:38px;">⇆</button>
+          <button class="icon-btn" style="width:38px;height:38px;">▶</button>
+          <div class="flex-1"></div>
+          <button class="icon-btn" style="width:38px;height:38px;">⋯</button>
+          <button class="icon-btn" style="width:38px;height:38px;" data-tip="Mở/đóng panel phải">▣</button>
+        </div>
+
+        <!-- Tablet main area: 1 sidebar + viewport + collapsed right sidebar (icon strip) -->
+        <div class="flex-1 flex" style="min-height: 0;">
+
+          <!-- Left sidebar (compact) -->
+          <div class="bg-slate-800 border-r border-slate-700 flex flex-col" style="width: 180px;">
+            <div class="p-2.5 border-b border-slate-700">
+              <div class="text-xs text-cyan-400 font-semibold uppercase mb-1">Bệnh nhân</div>
+              <div class="text-sm text-slate-200">Nguyễn Văn A</div>
+              <div class="text-[10px] text-slate-400">CT Sọ não · 2026-04-29</div>
+            </div>
+            <div class="p-2.5 border-b border-slate-700">
+              <div class="text-xs text-cyan-400 font-semibold uppercase mb-1.5">Chuỗi (4)</div>
+              <div class="space-y-1">
+                <div class="bg-slate-700 border border-cyan-500 rounded p-1.5 text-[11px]">1 · Axial T1</div>
+                <div class="bg-slate-900 border border-slate-700 rounded p-1.5 text-[11px] text-slate-400">2 · Axial T2</div>
+                <div class="bg-slate-900 border border-slate-700 rounded p-1.5 text-[11px] text-slate-400">3 · Coronal FLAIR</div>
+                <div class="bg-slate-900 border border-slate-700 rounded p-1.5 text-[11px] text-slate-400">4 · Sagittal T1</div>
+              </div>
+            </div>
+            <div class="p-2.5 flex-1">
+              <div class="text-xs text-cyan-400 font-semibold uppercase mb-1.5">Ca cũ (3)</div>
+              <div class="space-y-1">
+                <div class="bg-slate-900 border border-slate-700 rounded p-1.5 text-[10px]">
+                  <div class="text-cyan-300">2025-10-12 <span class="float-right text-slate-500">CT</span></div>
+                </div>
+                <div class="bg-slate-900 border border-slate-700 rounded p-1.5 text-[10px]">
+                  <div class="text-cyan-300">2024-06-03 <span class="float-right text-slate-500">MR</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Viewport (single, tablet defaults to 1×1) -->
+          <div class="flex-1 bg-black flex flex-col p-0.5">
+            <div class="flex-1 bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-600 relative">
+              <div class="absolute top-2 left-2 text-cyan-400 text-xs">Axial T1 · 60/120</div>
+              <div class="absolute top-2 right-2 text-slate-500 text-xs">W:80 L:40 · 100%</div>
+              <div class="absolute bottom-2 left-2 text-slate-500 text-xs">5mm · 0.7×0.7</div>
+              <div class="absolute bottom-2 right-2 text-slate-500 text-xs">L</div>
+              <div class="opacity-30 text-9xl">⊙</div>
+            </div>
+          </div>
+
+          <!-- Right sidebar collapsed to icon strip (tap to expand) -->
+          <div class="bg-slate-800 border-l border-slate-700 flex flex-col items-center py-3 gap-1" style="width: 48px;">
+            <button class="icon-btn" data-tip="Presets W/L">☀</button>
+            <button class="icon-btn active" data-tip="Bố cục">▦</button>
+            <button class="icon-btn" data-tip="Đồng bộ">⇆</button>
+            <button class="icon-btn" data-tip="Cine">▶</button>
+            <button class="icon-btn" data-tip="MPR tools" style="opacity:0.4;">⌗</button>
+            <button class="icon-btn" data-tip="3D tools" style="opacity:0.4;">◉</button>
+          </div>
+
+        </div>
+
+        <!-- Tablet status bar (condensed) -->
+        <div class="bg-slate-800 border-t border-slate-700 px-3 py-1 flex items-center text-xs text-slate-400 gap-3">
+          <span>60/120</span>
+          <span>+12.5 mm</span>
+          <span>W:80 L:40</span>
+          <span>HU: +42</span>
+          <div class="flex-1"></div>
+          <span class="text-cyan-400">Con trỏ</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-3 gap-3 text-xs text-slate-700">
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+        <strong>Sidebar phải thu gọn:</strong> chỉ icon strip 48px wide. Tap icon để mở panel toàn chiều cao
+        (slide-over). Tiết kiệm 200px cho viewport — mammo và CT toàn cảnh có chỗ.
+      </div>
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+        <strong>Touch target 38-40px:</strong> Nielsen / Apple HIG tối thiểu 44pt nhưng PACS dày icon — 38px là
+        compromise. Padding + spacing đủ để tránh fat-finger.
+      </div>
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+        <strong>Default 1×1:</strong> 2×2 / 3×3 vẫn được khi user chọn, nhưng tablet không nên default tile vì
+        từng cell quá nhỏ để đọc chi tiết.
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MOBILE VIEW ==================== -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-xl font-bold text-slate-800 mb-1">Mobile view (~375px portrait)</h2>
+    <p class="text-sm text-slate-600 mb-4">
+      <strong>Đối tượng:</strong> Bác sĩ lâm sàng / referring physician xem ảnh để phối hợp điều trị; bác sĩ trực
+      kiểm tra qua điện thoại trước khi quyết định vào viện. <strong>Không</strong> dùng cho primary diagnosis.<br>
+      <strong>Khác desktop:</strong> không multi-viewport, không công cụ vẽ phức tạp, gesture-first (vuốt cuộn, chụm zoom),
+      bottom toolbar trong tầm với của ngón cái, slide-up sheet cho menu sâu.
+    </p>
+
+    <div class="flex flex-wrap gap-6 justify-center">
+
+      <!-- Mobile screen 1: main viewer -->
+      <div>
+        <div class="text-xs text-slate-500 text-center mb-2 font-medium">Main viewer</div>
+        <div style="width: 375px; border: 12px solid #1e293b; border-radius: 36px; overflow: hidden; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.3); position: relative;">
+          <div style="height: 700px; display: flex; flex-direction: column; background: #000;">
+            <!-- Notch indicator -->
+            <div style="height: 28px; background: #1e293b; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; width: 110px; margin: 0 auto; position: relative; top: 0;"></div>
+
+            <!-- Mobile header -->
+            <div class="flex items-center px-3 py-2 bg-slate-800 border-b border-slate-700 gap-2" style="min-height: 48px; margin-top:-12px;">
+              <button class="icon-btn" style="width: 32px; height: 32px;">←</button>
+              <div class="flex-1 text-center">
+                <div class="text-xs text-slate-200 font-medium">Nguyễn Văn A</div>
+                <div class="text-[10px] text-slate-500">CT Sọ não · 2026-04-29</div>
+              </div>
+              <button class="icon-btn" style="width: 32px; height: 32px;">⋯</button>
+            </div>
+
+            <!-- Mobile viewport -->
+            <div class="flex-1 bg-slate-950 flex items-center justify-center text-slate-600 relative">
+              <div class="absolute top-2 left-2 text-cyan-400 text-xs">Axial T1</div>
+              <div class="absolute top-2 right-2 text-slate-500 text-xs">60/120</div>
+              <div class="absolute bottom-2 left-2 text-slate-500 text-[10px]">W:80 L:40 · 100%</div>
+              <div class="absolute bottom-2 right-2 text-slate-500 text-[10px]">L</div>
+              <div class="opacity-30" style="font-size: 100px;">⊙</div>
+
+              <!-- Slice scroll indicator (right edge) -->
+              <div class="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1">
+                <div class="w-1 h-20 bg-slate-700 rounded-full overflow-hidden">
+                  <div class="w-full bg-cyan-400" style="height: 50%; margin-top: 25%;"></div>
+                </div>
+              </div>
+
+              <!-- Gesture hint overlay -->
+              <div class="absolute inset-x-4 bottom-20 text-center text-[10px] text-slate-500 bg-slate-900/60 rounded p-1.5 backdrop-blur-sm">
+                ↕ vuốt: cuộn slice · ⊙ chụm: zoom · ⊞ 2 ngón: pan
+              </div>
+            </div>
+
+            <!-- Mobile bottom action bar (5 thumb-reachable actions) -->
+            <div class="bg-slate-800 border-t border-slate-700 grid grid-cols-5 gap-0" style="min-height: 64px;">
+              <button class="flex flex-col items-center justify-center text-slate-300 active:bg-slate-700 gap-1">
+                <span class="text-lg">☰</span><span class="text-[10px]">Chuỗi</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-cyan-400 bg-slate-700 gap-1">
+                <span class="text-lg">☀</span><span class="text-[10px]">W/L</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">📏</span><span class="text-[10px]">Đo</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">🕰</span><span class="text-[10px]">Cũ</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">⋯</span><span class="text-[10px]">Khác</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile screen 2: series sheet open -->
+      <div>
+        <div class="text-xs text-slate-500 text-center mb-2 font-medium">Series sheet (slide-up)</div>
+        <div style="width: 375px; border: 12px solid #1e293b; border-radius: 36px; overflow: hidden; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+          <div style="height: 700px; display: flex; flex-direction: column; background: #000; position: relative;">
+            <div style="height: 28px; background: #1e293b; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; width: 110px; margin: 0 auto;"></div>
+
+            <div class="flex items-center px-3 py-2 bg-slate-800 border-b border-slate-700 gap-2" style="min-height: 48px; margin-top:-12px;">
+              <button class="icon-btn" style="width: 32px; height: 32px;">←</button>
+              <div class="flex-1 text-center">
+                <div class="text-xs text-slate-200 font-medium">Nguyễn Văn A</div>
+                <div class="text-[10px] text-slate-500">CT Sọ não · 2026-04-29</div>
+              </div>
+              <button class="icon-btn" style="width: 32px; height: 32px;">⋯</button>
+            </div>
+
+            <!-- dimmed viewport behind -->
+            <div class="flex-1 bg-slate-950 flex items-center justify-center relative" style="filter: brightness(0.4);">
+              <div class="opacity-20" style="font-size: 100px;">⊙</div>
+            </div>
+
+            <!-- Slide-up sheet -->
+            <div class="absolute left-0 right-0 bottom-0 bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4" style="max-height: 60%;">
+              <div class="w-12 h-1 bg-slate-600 rounded-full mx-auto mb-3"></div>
+              <div class="text-xs text-cyan-400 font-semibold uppercase mb-2">Chuỗi ảnh</div>
+              <div class="space-y-1.5 mb-3">
+                <div class="bg-slate-700 rounded p-2 border border-cyan-500 text-xs">
+                  <div class="text-slate-200">1 · Axial T1 <span class="float-right text-cyan-400">●</span></div>
+                  <div class="text-[10px] text-slate-400">120 ảnh</div>
+                </div>
+                <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs">
+                  <div class="text-slate-300">2 · Axial T2</div>
+                  <div class="text-[10px] text-slate-500">120 ảnh</div>
+                </div>
+                <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs">
+                  <div class="text-slate-300">3 · Coronal FLAIR</div>
+                </div>
+              </div>
+              <div class="text-xs text-cyan-400 font-semibold uppercase mb-2">Ca cũ (3)</div>
+              <div class="bg-slate-900 rounded p-2 border border-slate-700 text-xs">
+                <div class="text-cyan-300">2025-10-12 <span class="float-right text-slate-500">CT Sọ não</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile screen 3: Mammo on mobile -->
+      <div>
+        <div class="text-xs text-slate-500 text-center mb-2 font-medium">Mammo (vuốt giữa các view)</div>
+        <div style="width: 375px; border: 12px solid #1e293b; border-radius: 36px; overflow: hidden; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+          <div style="height: 700px; display: flex; flex-direction: column; background: #000; position: relative;">
+            <div style="height: 28px; background: #1e293b; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; width: 110px; margin: 0 auto;"></div>
+
+            <div class="flex items-center px-3 py-2 bg-slate-800 border-b border-slate-700 gap-2" style="min-height: 48px; margin-top:-12px;">
+              <button class="icon-btn" style="width: 32px; height: 32px;">←</button>
+              <div class="flex-1 text-center">
+                <div class="text-xs text-pink-300 font-semibold">MAMMO VIEWER</div>
+                <div class="text-[10px] text-slate-500">Mã Hồng Thư · 2024-06-03</div>
+              </div>
+              <button class="icon-btn" style="width: 32px; height: 32px;">⋯</button>
+            </div>
+
+            <!-- View pager indicator -->
+            <div class="bg-slate-900 border-b border-slate-700 px-3 py-1.5 flex items-center justify-between">
+              <button class="text-slate-500 text-xs">‹</button>
+              <div class="flex gap-3 text-[11px]">
+                <span class="text-pink-300 font-semibold">RCC</span>
+                <span class="text-slate-500">LCC</span>
+                <span class="text-slate-500">RMLO</span>
+                <span class="text-slate-500">LMLO</span>
+              </div>
+              <button class="text-slate-500 text-xs">›</button>
+            </div>
+
+            <div class="flex-1 bg-slate-950 flex items-center justify-end pr-12 text-slate-600 relative">
+              <div class="absolute top-2 left-2 text-pink-300 text-xs">RCC · PROC</div>
+              <div class="absolute top-2 right-2 text-slate-500 text-xs">100% · 1:1px</div>
+              <div class="absolute bottom-2 right-2 text-pink-200 text-xs">R</div>
+              <div class="opacity-30" style="font-size: 90px;">◗</div>
+              <!-- swipe dots -->
+              <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-pink-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+              </div>
+            </div>
+
+            <div class="bg-slate-800 border-t border-slate-700 grid grid-cols-5 gap-0" style="min-height: 64px;">
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">▦</span><span class="text-[10px]">4-on-1</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">⊕</span><span class="text-[10px]">Lúp 2×</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-cyan-400 bg-slate-700 gap-1">
+                <span class="text-lg">☀</span><span class="text-[10px]">W/L</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">🕰</span><span class="text-[10px]">Prior</span>
+              </button>
+              <button class="flex flex-col items-center justify-center text-slate-300 gap-1">
+                <span class="text-lg">⋯</span><span class="text-[10px]">Khác</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mt-5 grid grid-cols-2 gap-3 text-xs text-slate-700">
+      <div class="bg-rose-50 border-l-4 border-rose-400 p-3 rounded">
+        <strong>Bottom toolbar (không phải top):</strong> trên điện thoại 6"+, ngón cái không với tới đỉnh màn hình.
+        iOS / Android UX guideline: tác vụ chính ở 1/3 dưới. PACS desktop quen top-toolbar nhưng mobile phải đảo.
+      </div>
+      <div class="bg-rose-50 border-l-4 border-rose-400 p-3 rounded">
+        <strong>Gesture-first, button-second:</strong> vuốt dọc = cuộn slice; chụm = zoom; 2-ngón kéo = pan;
+        long-press = drag W/L. Button chỉ có 5 (trong tầm ngón cái). Đo lường nâng cao trong "Khác" sheet.
+      </div>
+      <div class="bg-rose-50 border-l-4 border-rose-400 p-3 rounded">
+        <strong>Slide-up sheet thay sidebar:</strong> không đủ chiều ngang cho left/right panel. Sheet kéo
+        từ dưới lên, dim viewport phía sau, vuốt xuống để đóng. Quy ước iOS / Material đã quen.
+      </div>
+      <div class="bg-rose-50 border-l-4 border-rose-400 p-3 rounded">
+        <strong>Mammo trên mobile = view-pager:</strong> 4 ảnh CC/MLO không thể hiện 4-on-1 grid trên 375px
+        (vi vôi hóa cần 1:1 pixel — bằng đường kính ngón tay). Xem từng ảnh, vuốt ngang để chuyển. 4-on-1 chỉ
+        truy cập được trên tablet/desktop.
+      </div>
+    </div>
+
+    <div class="mt-4 bg-orange-50 border border-orange-300 rounded p-4 text-sm text-orange-900">
+      <strong>⚠ Cảnh báo cần thấy:</strong> Mobile <em>không</em> phải tool đọc chính cho radiologist.
+      Hiển thị banner <code>"Chế độ xem hỗ trợ — không dùng cho chẩn đoán chính thức"</code> khi vào từ thiết bị
+      &lt;768px. Theo FDA / EU MDR, chỉ display calibrated mới qualify cho primary read.
+    </div>
+  </div>
+
+  <!-- ==================== ANNOTATIONS ==================== -->
+  <div class="bg-white rounded-lg shadow p-6 space-y-5">
+    <h2 class="text-xl font-bold text-slate-800">Tại sao bố cục này?</h2>
+    <p class="text-sm text-slate-600">Tám nguyên tắc chính, đối chiếu với 8 PACS viewer phổ biến (RadiAnt, Synapse, Sectra, Visage, Carestream, Horos, Weasis, OHIF).</p>
+
+    <div class="annot-card">
+      <strong>1. Một thanh công cụ trên cùng, gom theo cách thao tác chuột — không gom theo "loại chức năng".</strong><br>
+      Toolbar chia 5 nhóm bằng dải phân cách: <em>(a) chế độ chuột</em> [W/L · Pan · Zoom · Probe · Crosshairs] →
+      <em>(b) công cụ vẽ</em> [Length · Angle · ROI · T] → <em>(c) tác vụ một lần</em> [Rotate · Flip · Invert] →
+      <em>(d) bố cục/playback</em> → <em>(e) xuất/lưu</em>. Đây là cách 80% PACS viewer thực tế làm — không gom theo
+      "display vs measurement" (nhóm khái niệm) mà gom theo <em>"chuột tôi sắp làm gì?"</em> (ngữ cảnh thực tế).
+    </div>
+
+    <div class="annot-card">
+      <strong>2. Mode 2D / MPR / 3D là tab strip, không phải dropdown.</strong><br>
+      Legacy viewer dùng dropdown (3×3 grid icon → menu). Khảo sát ngành: <em>không có viewer nào</em> giấu mode trong
+      dropdown — Weasis dùng tab strip, RadiAnt mở cửa sổ mới, Carestream chuyển "application". Tab luôn nhìn thấy
+      → bác sĩ biết ngay đang ở mode nào, click 1 lần để đổi (thay vì 2 click). Endo bị loại theo yêu cầu.
+    </div>
+
+    <div class="annot-card">
+      <strong>3. Right sidebar đổi nội dung theo mode — không nhồi tất cả vào một bảng.</strong><br>
+      Legacy hiển thị toàn bộ panel mọi lúc (CPR / Slab mode hiện ngay cả khi đang xem 2D X-quang). Thiết kế mới:
+      sidebar phải <em>specialize</em> theo mode đang chọn. 2D không cần "Slab mode", 3D không cần "Image Layout".
+      Giảm nhiễu thị giác → bác sĩ tập trung vào chức năng đang dùng.
+    </div>
+
+    <div class="annot-card">
+      <strong>4. Ba kênh truy cập W/L preset song song.</strong><br>
+      (a) Pill buttons trong sidebar (Não · Xương · Phổi…) — luôn nhìn thấy, click 1 lần.
+      (b) Hotkey số 1–9 — power user.
+      (c) Dropdown trên toolbar nút W/L — fallback. Đây là quy ước chung của mọi enterprise PACS.
+      Phím số <strong>1 = Não</strong> (CT brain), <strong>2 = Xương</strong>, <strong>3 = Phổi</strong>… — thứ tự
+      khớp với preset Vietnamese của legacy. Hotkey cũ <em>Shift+R · Shift+L</em> giữ để chuyển từ legacy không phải học lại.
+    </div>
+
+    <div class="annot-card">
+      <strong>5. Left sidebar = ngữ cảnh (bệnh nhân + chuỗi + ca cũ). Right sidebar = công cụ.</strong><br>
+      Quy ước này áp dụng ở 8/8 viewer khảo sát. Bác sĩ <em>đọc</em> bên trái (ngữ cảnh ca), <em>thao tác</em> bên phải (công cụ).
+      Ca chụp cũ (priors) gắn ngay trên left sidebar — sẵn sàng kéo vào viewport so sánh, không cần mở popup riêng như hiện tại.
+    </div>
+
+    <div class="annot-card">
+      <strong>6. Status bar cuối màn hình hiện realtime: slice · vị trí mm · W/L · zoom · HU dưới chuột · tool đang active.</strong><br>
+      Legacy không có. Khi bác sĩ đo HU lesion, di chuột là thấy giá trị ngay — không cần switch tool sang Probe.
+      "Tool đang active" hiển thị ở góc phải status bar trả lời câu hỏi "tôi click trái sẽ làm gì?" — quan trọng vì
+      mouse-mode model dễ gây nhầm.
+    </div>
+
+    <div class="annot-card" style="background:#dbeafe;border-left-color:#3b82f6;color:#1e3a8a;">
+      <strong>7. Ba breakpoint, ba use case khác nhau — không chỉ "thu nhỏ" desktop.</strong><br>
+      <em>Desktop (≥1280px)</em> = primary diagnosis cho radiologist. Toolbar full, 2 sidebar luôn mở, multi-viewport.<br>
+      <em>Tablet (768-1279px)</em> = lite reading / hội chẩn / dạy học. Sidebar phải thu icon strip, default 1×1.<br>
+      <em>Mobile (&lt;768px)</em> = consult view cho referring physician / bác sĩ trực — <strong>không dùng diagnosis</strong>.
+      Bottom toolbar (thumb-reach), gesture-first, slide-up sheet, banner cảnh báo "không dùng chẩn đoán chính thức"
+      (FDA/EU MDR yêu cầu calibrated display cho primary read). Mammo trên mobile = view-pager 1 ảnh / lần.
+    </div>
+
+    <div class="annot-card" style="background:#fce7f3;border-left-color:#ec4899;color:#831843;">
+      <strong>8. Mode tabs ẩn/hiện theo modality của ca chụp. Mammo có workspace riêng.</strong><br>
+      Tab <em>2D / MPR / 3D</em> chỉ xuất hiện khi modality cho phép. Ca CT/MR → cả 3 tab. Ca CR/DX/US → chỉ 2D.
+      Ca <strong>MG (Mammo)</strong> → ẩn toàn bộ tab, header đổi thành <em>"Mammo Viewer"</em> (Option A).
+      Lý do: Mammo có hanging protocol riêng (CC / MLO / 4-on-1), workflow tách biệt (đọc tầm soát so sánh prior),
+      và không bao giờ chuyển sang MPR/3D giữa ca. Right sidebar Mammo có Hanging Protocol pills, RAW/PROC toggle,
+      magnifier 2×/4× cho vi vôi hóa, DBT cine cho tomosynthesis. Bấm nút <em>"Mammo 2 bên"</em> ở đầu trang để xem.
+    </div>
+
+    <h3 class="text-lg font-semibold text-slate-800 pt-3 border-t">Khác biệt vs legacy</h3>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="bg-slate-100">
+            <th class="border border-slate-300 p-2 text-left">Khía cạnh</th>
+            <th class="border border-slate-300 p-2 text-left">Legacy</th>
+            <th class="border border-slate-300 p-2 text-left">Medisync redesign</th>
+            <th class="border border-slate-300 p-2 text-left">Lý do</th>
+          </tr>
+        </thead>
+        <tbody class="text-slate-700">
+          <tr><td class="border border-slate-300 p-2">Mode picker</td><td class="border border-slate-300 p-2">Dropdown (3×3 grid)</td><td class="border border-slate-300 p-2">Tab strip 2D/MPR/3D</td><td class="border border-slate-300 p-2">Khớp quy ước ngành; click 1 lần thay vì 2</td></tr>
+          <tr><td class="border border-slate-300 p-2">Sidebar mode-specific</td><td class="border border-slate-300 p-2">Hiện hết mọi lúc</td><td class="border border-slate-300 p-2">Đổi theo mode</td><td class="border border-slate-300 p-2">Giảm nhiễu, tăng focus</td></tr>
+          <tr><td class="border border-slate-300 p-2">Image Layout vs Series Layout</td><td class="border border-slate-300 p-2">2 row riêng (lặp lại)</td><td class="border border-slate-300 p-2">Gộp vào "Bố cục" với 2 sub-section nhỏ</td><td class="border border-slate-300 p-2">Hai khái niệm rất gần, không cần row riêng biệt</td></tr>
+          <tr><td class="border border-slate-300 p-2">Granular sync</td><td class="border border-slate-300 p-2">Manual/Zoom/Pan/Rotate/W/L (5 checkbox)</td><td class="border border-slate-300 p-2">3 checkbox: vị trí, W/L, Zoom/Pan</td><td class="border border-slate-300 p-2">Manual không cần (mặc định off); Rotate ít dùng → đẩy vào "More"</td></tr>
+          <tr><td class="border border-slate-300 p-2">Endo</td><td class="border border-slate-300 p-2">Có (rare)</td><td class="border border-slate-300 p-2">Bỏ</td><td class="border border-slate-300 p-2">Người dùng xác nhận không cần</td></tr>
+          <tr><td class="border border-slate-300 p-2">Ca chụp cũ</td><td class="border border-slate-300 p-2">Floating popup góc trái</td><td class="border border-slate-300 p-2">Section trong left sidebar</td><td class="border border-slate-300 p-2">Tất cả ngữ cảnh ca chụp ở 1 chỗ</td></tr>
+          <tr><td class="border border-slate-300 p-2">Status bar</td><td class="border border-slate-300 p-2">Không có</td><td class="border border-slate-300 p-2">Slice / mm / W/L / HU / tool active</td><td class="border border-slate-300 p-2">Thông tin realtime; trả lời "click sẽ làm gì"</td></tr>
+          <tr><td class="border border-slate-300 p-2">CPR / SSD / Auto-seg</td><td class="border border-slate-300 p-2">Hiện như feature đầy đủ</td><td class="border border-slate-300 p-2">Đánh dấu "Phase 2"</td><td class="border border-slate-300 p-2">Thực tế: multi-week build mỗi feature; nên triển khai sau v1</td></tr>
+          <tr><td class="border border-slate-300 p-2">Mammo</td><td class="border border-slate-300 p-2">"Mammo Viewer" hoàn toàn riêng biệt</td><td class="border border-slate-300 p-2">"Mammo Viewer" header (Option A) — ẩn 2D/MPR/3D tab khi modality MG</td><td class="border border-slate-300 p-2">Workflow Mammo tách biệt; tab không cần thiết khi không có lựa chọn khác</td></tr>
+          <tr><td class="border border-slate-300 p-2">Mode tab visibility</td><td class="border border-slate-300 p-2">Cố định 4 tab cho mọi ca</td><td class="border border-slate-300 p-2">Modality-aware (CT/MR=3 tab, CR/DX/US=1 tab, MG=ẩn)</td><td class="border border-slate-300 p-2">Tab MPR/3D vô nghĩa cho X-quang đơn ảnh</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="text-lg font-semibold text-slate-800 pt-3 border-t">Hết function nào không?</h3>
+    <p class="text-sm text-slate-600">Đối chiếu lại 9 nhóm chức năng PACS chuẩn:</p>
+    <ul class="text-sm text-slate-700 space-y-1 list-disc pl-6">
+      <li><strong>1. Loading/navigation</strong> — Left sidebar có study/series/priors. Stack scroll = wheel chuột. ✓</li>
+      <li><strong>2. Display tuning (W/L)</strong> — Toolbar W/L button + sidebar presets + hotkey 1–9. ✓</li>
+      <li><strong>3. Geometry (pan/zoom/rotate/flip)</strong> — Toolbar đầy đủ; Reset có sẵn. ✓</li>
+      <li><strong>4. Measurements/annotations</strong> — Length / Angle / Bidirectional / ROI dropdown / Annotate / Specialty (CTR/Cobb/Spine) / Undo / Delete. ✓</li>
+      <li><strong>5. Multi-viewport</strong> — Layout button + Sync + Crosshairs + sidebar sync toggles. ✓</li>
+      <li><strong>6. Advanced reconstruction</strong> — MPR mode (axial/sagittal/coronal/oblique), Slab modes (MPR/MIP/MinIP/AIP/VR/Slab), 3D mode (VR/MIP/MinIP, presets, orientation). CPR + SSD = Phase 2. ✓ (cốt lõi)</li>
+      <li><strong>7. Cine playback</strong> — Toolbar Cine + sidebar player với FPS. ✓</li>
+      <li><strong>8. Reporting</strong> — Save measurements, Capture screenshot. ✓</li>
+      <li><strong>9. Metadata</strong> — Toolbar ⓘ button (DICOM tag dump). ✓</li>
+    </ul>
+
+    <p class="text-sm text-slate-600 pt-2">
+      <strong>Phase 2 backlog:</strong> CPR (vessel tracking), SSD (surface render), auto tissue segmentation, custom hanging protocols,
+      drag-dock panels, custom toolbar layouts.
+    </p>
+  </div>
+
+</div>
+
+<script>
+  function switchMode(mode) {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+    document.querySelector(`[data-panel="${mode}"]`).classList.remove('hidden');
+  }
+
+  // Switch the entire study (CT vs MG). Modality-aware: hides 2D/MPR/3D tabs for MG.
+  function setStudy(study) {
+    // Toggle the study switcher pills
+    ['ct', 'mg'].forEach(s => {
+      const btn = document.getElementById(`study-${s}`);
+      if (s === study) {
+        btn.classList.add('active');
+        btn.style.cssText = 'background:#0e7490;border-color:#5acce6;color:#fff;';
+      } else {
+        btn.classList.remove('active');
+        btn.style.cssText = '';
+      }
+    });
+
+    // Show/hide left sidebar + viewport content per study
+    document.querySelectorAll('[data-study]').forEach(el => {
+      el.classList.toggle('hidden', el.dataset.study !== study);
+    });
+
+    // Modality-aware: tabs visible only when there's a choice
+    const tabs = document.getElementById('mode-tabs');
+    const mammoLabel = document.getElementById('mammo-label');
+    const headerTitle = document.getElementById('header-title');
+
+    if (study === 'mg') {
+      tabs.classList.add('hidden');
+      mammoLabel.classList.remove('hidden');
+      headerTitle.textContent = 'MEDISYNC MAMMO';
+      headerTitle.className = 'text-pink-300 font-bold tracking-wide text-sm';
+      // Force the right sidebar to mammo panel
+      document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+      document.querySelector('[data-panel="mammo"]').classList.remove('hidden');
+    } else {
+      tabs.classList.remove('hidden');
+      mammoLabel.classList.add('hidden');
+      headerTitle.textContent = 'MEDISYNC PACS';
+      headerTitle.className = 'text-cyan-400 font-bold tracking-wide text-sm';
+      // Restore default mode (2D)
+      switchMode('2d');
+    }
+  }
+</script>
+
+</body>
+</html>
