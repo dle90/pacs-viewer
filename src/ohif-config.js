@@ -138,8 +138,9 @@ window.config = {
     // Series synchronization (moved from 's' to 'shift+s' so 's' can drive Stack Scroll per legacy)
     { commandName: 'toggleSynchronizer', commandOptions: { type: 'imageSlice' }, label: 'Sync Scroll Position', keys: ['shift+s'], isEditable: true },
 
-    // Cine playback
-    { commandName: 'toggleCine', label: 'Toggle Cine', keys: ['shift+p'] },
+    // Cine playback — medisyncCineToggle (registered in medisync-extras.js) starts
+    // real playback via cineService; stock toggleCine only showed the (now hidden) bar.
+    { commandName: 'medisyncCineToggle', label: 'Toggle Cine', keys: ['shift+p'], context: 'CORNERSTONE' },
   ],
 
   dataSources: [

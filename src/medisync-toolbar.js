@@ -22,6 +22,14 @@
   // dropdown: array of menu items shown below the button on click
   // fn: in-script function (for custom logic that doesn't fit OHIF commands)
   // todo: logs a console message instead of running a command (placeholder)
+  // True when the viewer runs standalone (opened directly, not embedded in
+  // the RIS). RIS-backed actions (key image, hide/delete, DICOM downloads)
+  // need the parent host to proxy /api calls — standalone renders those
+  // buttons disabled instead of letting them hang for 30s.
+  var LR_STANDALONE = (function () {
+    try { return window.parent === window && !window.opener; } catch (e) { return true; }
+  })();
+
   var TOOLBAR = [
     // ---- Mode tabs (left edge, modality-aware) ----
     { type: 'mode-tabs' },
@@ -74,26 +82,28 @@
 
     // ---- Group D: Layout / sync / cine (added per redesign, not legacy) ----
     { type: 'btn', id: 'sync',       svg: 'sync',     tip: 'Sync Scroll · Đồng bộ', cmd: 'toggleSynchronizer', cmdOpts: { type: 'imageSlice' } },
-    { type: 'btn', id: 'cine',       svg: 'play',     tip: 'Cine · Phát ảnh động (Shift+P)', cmd: 'toggleCine' },
+    // fn (not cmd toggleCine): the stock CinePlayer bar is hidden, and the
+    // toggleCine command only shows/hides that bar — it never starts playback.
+    { type: 'btn', id: 'cine',       svg: 'play',     tip: 'Cine · Phát ảnh động (Shift+P)', fn: 'cineTogglePlay' },
 
     { type: 'spacer' },
 
     // ---- Group E: Output / metadata (right edge) ----
-    { type: 'btn', id: 'keyimg',     svg: 'star',     tip: 'Key Image · Đánh dấu ảnh quan trọng', fn: 'toggleKeyImage' },
+    { type: 'btn', id: 'keyimg',     svg: 'star',     tip: 'Key Image · Đánh dấu ảnh quan trọng', fn: 'toggleKeyImage', requiresHost: true },
     { type: 'btn', id: 'save',       svg: 'download', tip: 'Lưu · Tải về ▾',
       dropdown: [
         { label: 'Ảnh hiện tại (JPEG)',         cmd: 'showDownloadViewportModal' },
-        { label: 'Ảnh hiện tại (DICOM .dcm)',   fn: 'downloadCurrentInstance' },
+        { label: 'Ảnh hiện tại (DICOM .dcm)',   fn: 'downloadCurrentInstance', requiresHost: true },
         { divider: true },
-        { label: 'Loạt hiện tại (DICOM .zip)',  fn: 'downloadCurrentSeries' },
+        { label: 'Loạt hiện tại (DICOM .zip)',  fn: 'downloadCurrentSeries', requiresHost: true },
         { label: 'Loạt hiện tại (JPEG .zip, ≤200 ảnh)', fn: 'downloadCurrentSeriesAsJpegZip' },
         { divider: true },
-        { label: 'Ca hiện tại (DICOM .zip)',    fn: 'downloadCurrentStudy' },
+        { label: 'Ca hiện tại (DICOM .zip)',    fn: 'downloadCurrentStudy', requiresHost: true },
         { label: 'Ca hiện tại (JPEG .zip, ≤200 ảnh tổng)', fn: 'downloadCurrentStudyAsJpegZip' },
       ]
     },
     { type: 'btn', id: 'capture',    svg: 'camera',   tip: 'Capture · Chụp viewport',  cmd: 'showDownloadViewportModal' },
-    { type: 'btn', id: 'delStudy',   svg: 'trash',    tip: 'Xóa · Ẩn / Xóa vĩnh viễn ▾', style: 'color:#ef4444',
+    { type: 'btn', id: 'delStudy',   svg: 'trash',    tip: 'Xóa · Ẩn / Xóa vĩnh viễn ▾', style: 'color:#ef4444', requiresHost: true,
       dropdown: [
         { label: 'Ẩn ca này (có thể khôi phục)',           fn: 'hideCurrentStudy' },
         { label: 'Bỏ ẩn ca này',                          fn: 'unhideCurrentStudy' },
@@ -135,6 +145,8 @@
     specialty: '<path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/>',
     undo: '<path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h11a5 5 0 015 5v0a5 5 0 01-5 5h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
     'cross-x': '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    stepPrev: '<path d="M7 5v14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    stepNext: '<path d="M17 5v14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
 
     rotateCW: '<path d="M4 12a8 8 0 1014-5.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14 4l4 2.7-2 4.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="9" width="6" height="6" fill="none" stroke="currentColor" stroke-width="1.2"/>',
     rotateCCW: '<path d="M20 12a8 8 0 11-14-5.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10 4L6 6.7l2 4.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="9" width="6" height="6" fill="none" stroke="currentColor" stroke-width="1.2"/>',
@@ -257,6 +269,14 @@
     // Make room on right for our sidebar (240px), since OHIF main expands when stock sidebar hides
     '#root { padding-right: 240px !important; }',
 
+    // ---- Left study/thumbnail panel (OHIF stock) ----
+    // OHIF mounts the panel content instantly the moment it expands, while the
+    // panel width animates over 300ms — so the content "pops" in. Fade + slide
+    // the freshly-mounted content in over the same 300ms ease so it glides in
+    // with the panel instead of snapping. (mr-2 = left panel; ml-2 = right.)
+    'div.transition-all.duration-300.mr-2.bg-black > * { animation: lr-panel-in 300ms ease-in-out; }',
+    '@keyframes lr-panel-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }',
+
     '#medisync-sidebar {',
     '  position: fixed; top: 48px; right: 0; bottom: 0; width: 240px;',
     '  background: #1e293b; border-left: 1px solid #334155;',
@@ -336,11 +356,17 @@
     '  cursor: pointer;',
     '}',
     '#medisync-sidebar .lr-slider-preset:hover { color: #e2e8f0; border-color: #5acce6; }',
-    // Patient overlay toggles (driven by Info dropdown)
-    'body.lr-hide-overlays .viewport-overlay,',
+    // Patient overlay toggles (driven by Info dropdown + sidebar "Hiển thị").
+    // v3.8 corner overlays use SUFFIXED class tokens (viewport-overlay-top-left,
+    // -top-right, -bottom-*), so plain .viewport-overlay never matched them —
+    // match by substring instead. .ViewportOverlay kept for the legacy component.
+    'body.lr-hide-overlays [class*="viewport-overlay"],',
+    'body.lr-hide-overlays .ViewportOverlay,',
     'body.lr-hide-overlays .lr-compression-overlay { display: none !important; }',
-    'body.lr-anonymize .viewport-overlay,',
-    'body.lr-anonymize .lr-compression-overlay { filter: blur(5px); }',
+    // Anonymize = TEXT REPLACEMENT everywhere (no blur): the left panel swaps
+    // the name in renderLeftPanel; the React-owned corner overlays are rewritten
+    // by _anonOverlaySweep() (name → "Bệnh nhân ẩn danh", ID → bullets) on the
+    // 1s sweep, which also restores the originals when un-ticked.
 
     // Mammo compression / paddle / kVp / mAs overlay (Medisync v1 value-add)
     '.lr-compression-overlay {',
@@ -436,6 +462,235 @@
     // on every load and requires a Confirm-and-Hide click. Class chain is
     // unique enough that this won't collide with other fixed elements.
     'div.fixed.bottom-2.z-50.w-full.justify-center { display: none !important; }',
+
+    // ===========================================================
+    // Medisync redesign "skin v2" — appended override block.
+    // Uses the SAME selectors/IDs as above (so all wiring stays intact),
+    // re-themed with demo_ui design tokens. Later source order wins.
+    // ===========================================================
+    `
+    :root{
+      --lr-accent:#5acce6;
+      --lr-accent-soft:color-mix(in srgb, var(--lr-accent) 16%, transparent);
+      --lr-accent-line:color-mix(in srgb, var(--lr-accent) 55%, transparent);
+      --lr-stage:#070c16; --lr-panel:#111a2b; --lr-panel-2:#18233a; --lr-panel-3:#1f2c46;
+      --lr-border:rgba(148,163,184,.14); --lr-border-2:rgba(148,163,184,.26);
+      --lr-text:#e6edf6; --lr-text-2:#9fb0c6; --lr-text-3:#647189;
+      --lr-danger:#f87171; --lr-amber:#f5b454;
+      --lr-radius:9px; --lr-tbh:56px; --lr-btn:30px; --lr-sbw:240px; --lr-lpw:270px;
+      --lr-font:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+      --lr-mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+    html[data-lr-density="compact"]{ --lr-tbh:50px; --lr-btn:28px; }
+    html[data-lr-density="comfy"]{ --lr-tbh:72px; --lr-btn:40px; }
+
+    /* ---- self-hosted IBM Plex (Google Fonts blocked by COEP require-corp) ---- */
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/ibm-plex-sans-latin-400-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/ibm-plex-sans-vietnamese-400-normal.woff2') format('woff2');unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+1EA0-1EF9,U+20AB;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/ibm-plex-sans-latin-500-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/ibm-plex-sans-vietnamese-500-normal.woff2') format('woff2');unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+1EA0-1EF9,U+20AB;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/ibm-plex-sans-latin-600-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/ibm-plex-sans-vietnamese-600-normal.woff2') format('woff2');unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+1EA0-1EF9,U+20AB;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/ibm-plex-sans-latin-700-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+    @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/ibm-plex-sans-vietnamese-700-normal.woff2') format('woff2');unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+1EA0-1EF9,U+20AB;}
+    @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');}
+    @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');}
+    @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');}
+
+    /* fonts scoped to our custom UI (avoid disturbing OHIF metrics) */
+    #medisync-toolbar, #medisync-sidebar, .lr-dropdown, #medisync-timeline-panel { font-family:var(--lr-font); }
+    #medisync-sidebar .lr-slider-val, .lr-compression-overlay { font-family:var(--lr-mono); }
+
+    /* layout vars (toolbar height / sidebar width drive viewport padding) */
+    #root { padding-top:var(--lr-tbh) !important; padding-right:var(--lr-sbw) !important; }
+
+    /* ---- toolbar ---- */
+    #medisync-toolbar{ height:var(--lr-tbh); background:linear-gradient(180deg,#16223a,#0f1828); border-bottom:1px solid var(--lr-border); padding:0 12px; }
+    #medisync-toolbar .lr-mode-tabs{ display:flex; gap:2px; background:#0c1422; border:1px solid var(--lr-border); border-radius:8px; padding:3px; margin-right:6px; }
+    #medisync-toolbar .lr-mode-tab{ padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:600; color:var(--lr-text-2); letter-spacing:.04em; }
+    #medisync-toolbar .lr-mode-tab:hover{ background:transparent; color:var(--lr-text); }
+    #medisync-toolbar .lr-mode-tab.active{ background:var(--lr-accent-soft); color:var(--lr-accent); box-shadow:inset 0 0 0 1px var(--lr-accent-line); }
+    #medisync-toolbar .lr-mammo-label{ color:var(--lr-accent); }
+    #medisync-toolbar .lr-btn{ width:var(--lr-btn); height:var(--lr-btn); border-radius:var(--lr-radius); color:var(--lr-text-2); }
+    #medisync-toolbar .lr-btn:hover{ background:var(--lr-panel-2); color:var(--lr-text); }
+    #medisync-toolbar .lr-btn.active{ background:var(--lr-accent-soft); color:var(--lr-accent); box-shadow:inset 0 0 0 1px var(--lr-accent-line); }
+    #medisync-toolbar .lr-btn:hover::after{ top:calc(100% + 8px); background:#060b15; color:var(--lr-text); border:1px solid var(--lr-border-2); border-radius:7px; padding:5px 9px; font-size:11.5px; box-shadow:0 8px 22px rgba(0,0,0,.55); }
+    #medisync-toolbar .lr-divider{ background:var(--lr-border); height:24px; margin:0 7px; }
+    #medisync-toolbar .lr-brand{ color:var(--lr-accent); letter-spacing:.12em; font-weight:700; font-size:12px; }
+    #medisync-toolbar .lr-btn[data-has-dropdown]::before{ border-color:var(--lr-text-3) transparent transparent transparent; opacity:.7; }
+
+    /* ---- dropdown ---- */
+    .lr-dropdown{ background:var(--lr-panel-2); border:1px solid var(--lr-border-2); border-radius:11px; padding:7px; box-shadow:0 18px 48px rgba(0,0,0,.6); animation:lr-ddin .14s ease; }
+    .lr-dropdown .lr-item{ border-radius:7px; color:var(--lr-text); padding:8px 10px; font-size:13px; }
+    .lr-dropdown .lr-item:hover{ background:var(--lr-panel-3); color:var(--lr-text); }
+    .lr-dropdown .lr-item-divider{ background:var(--lr-border); margin:5px 0; }
+    @keyframes lr-ddin{ from{ opacity:0; transform:translateY(-5px); } }
+
+    /* ---- sidebar ---- */
+    #medisync-sidebar{ top:var(--lr-tbh); width:var(--lr-sbw); background:var(--lr-panel); border-left:1px solid var(--lr-border); color:var(--lr-text-2); }
+    #medisync-sidebar .lr-sec-title{ color:var(--lr-text-2); font-size:11px; letter-spacing:.07em; }
+    #medisync-sidebar .lr-sec-hint{ color:var(--lr-text-3); }
+    /* Options wrap instead of overflowing: pill groups were a fixed-N-column
+       grid (e.g. MPR Mode forces 5 columns into 240px) — switch to flex-wrap
+       (demo .sb-pills behavior); the inline grid-template-columns set by
+       buildPills is inert under display:flex. Same for layout button rows. */
+    #medisync-sidebar .lr-pill-grid{ display:flex; flex-wrap:wrap; gap:6px; }
+    #medisync-sidebar .lr-layout-row{ flex-wrap:wrap; }
+    #medisync-sidebar .lr-pill{ flex:0 1 auto; background:#0c1422; border:1px solid var(--lr-border); color:var(--lr-text-2); border-radius:20px; padding:6px 11px; font-size:12px; }
+    #medisync-sidebar .lr-pill:hover{ border-color:var(--lr-border-2); color:var(--lr-text); }
+    #medisync-sidebar .lr-pill.active{ background:var(--lr-accent-soft); border-color:var(--lr-accent-line); color:var(--lr-accent); }
+    #medisync-sidebar .lr-layout-btn{ background:#0c1422; border:1px solid transparent; border-radius:8px; color:var(--lr-text-2); }
+    #medisync-sidebar .lr-layout-btn:hover{ border-color:var(--lr-border-2); color:var(--lr-text); }
+    #medisync-sidebar .lr-layout-btn.active{ background:var(--lr-accent-soft); border-color:var(--lr-accent-line); color:var(--lr-accent); }
+    #medisync-sidebar .lr-check{ color:var(--lr-text-2); }
+    #medisync-sidebar .lr-check input{ accent-color:var(--lr-accent); }
+    #medisync-sidebar .lr-cine-btn{ background:#0c1422; border:1px solid var(--lr-border); color:var(--lr-text-2); border-radius:8px; }
+    #medisync-sidebar .lr-cine-btn:hover{ border-color:var(--lr-accent-line); color:var(--lr-accent); }
+    #medisync-sidebar .lr-cine-btn:disabled{ opacity:.32; cursor:not-allowed; }
+    #medisync-sidebar .lr-cine-btn:disabled:hover{ border-color:var(--lr-border); color:var(--lr-text-2); }
+    #medisync-sidebar select{ background:#0c1422; border:1px solid var(--lr-border); color:var(--lr-text-2); border-radius:7px; }
+    #medisync-sidebar input[type="range"]{ accent-color:var(--lr-accent); }
+    #medisync-sidebar .lr-slider-val{ color:var(--lr-text-3); }
+    #medisync-sidebar .lr-slider-preset{ background:#0c1422; border:1px solid var(--lr-border); color:var(--lr-text-3); border-radius:6px; }
+    #medisync-sidebar .lr-slider-preset:hover{ border-color:var(--lr-accent-line); color:var(--lr-accent); }
+    #medisync-sidebar .lr-placeholder{ background:#0c1422; border:1px dashed var(--lr-border-2); color:var(--lr-text-3); border-radius:8px; }
+    #medisync-sidebar::-webkit-scrollbar, .lr-dropdown::-webkit-scrollbar{ width:9px; height:9px; }
+    #medisync-sidebar::-webkit-scrollbar-thumb, .lr-dropdown::-webkit-scrollbar-thumb{ background:#2a3855; border-radius:6px; }
+
+    /* ---- overlays / cube / loading / plane picker ---- */
+    .lr-compression-overlay{ background:rgba(10,16,28,.85); color:var(--lr-accent); border:1px solid var(--lr-border-2); border-radius:8px; }
+    .lr-compression-overlay .lr-comp-label{ color:var(--lr-text-3); }
+    .lr-volume-loading{ background:rgba(7,12,22,.85); }
+    .lr-volume-spinner{ border-color:var(--lr-accent-soft); border-top-color:var(--lr-accent); }
+    .lr-volume-msg{ color:var(--lr-accent); }
+    .lr-volume-sub{ color:var(--lr-text-2); }
+    .lr-vp-plane-picker{ color:var(--lr-accent); background:rgba(10,16,28,.6); border-radius:6px; }
+    .lr-vp-plane-menu{ background:var(--lr-panel-2); border:1px solid var(--lr-border-2); border-radius:8px; }
+    .lr-vp-plane-menu .lr-mi:hover{ background:var(--lr-panel-3); color:var(--lr-accent); }
+    .lr-orient-cube .lr-oc-btn{ background:rgba(10,16,28,.7); color:var(--lr-text-2); border:1px solid var(--lr-border-2); border-radius:6px; }
+    .lr-orient-cube .lr-oc-btn:hover{ background:var(--lr-accent-soft); color:var(--lr-accent); border-color:var(--lr-accent-line); }
+
+    /* ---- Phase 2: brand logo, toolbar groups + labels, collapsible sections, slider fill ---- */
+    #medisync-toolbar .lr-brand{ display:flex; align-items:center; gap:9px; margin-left:0; margin-right:10px; padding:0; }
+    #medisync-toolbar .lr-logo-mark{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; color:#06222b; background:linear-gradient(150deg, var(--lr-accent), color-mix(in srgb, var(--lr-accent) 60%, #3b82f6)); box-shadow:0 2px 10px var(--lr-accent-soft); }
+    #medisync-toolbar .lr-brand-text{ font-size:13px; font-weight:700; letter-spacing:.12em; color:var(--lr-text); white-space:nowrap; }
+    #medisync-toolbar .lr-brand-text b{ color:var(--lr-accent); font-weight:700; }
+    #medisync-toolbar .lr-tb-group{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+    #medisync-toolbar .lr-grow{ display:flex; align-items:center; gap:1px; }
+    #medisync-toolbar .lr-glabel{ display:none; font-size:8.5px; letter-spacing:.16em; color:var(--lr-text-3); text-transform:uppercase; font-weight:600; }
+    html[data-lr-density="comfy"] #medisync-toolbar .lr-glabel{ display:block; }
+    #medisync-sidebar .lr-sec-head{ display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:0; cursor:pointer; padding:0; margin-bottom:8px; color:inherit; }
+    #medisync-sidebar .lr-sec-head .lr-sec-title{ margin-bottom:0; }
+    #medisync-sidebar .lr-sec-caret{ color:var(--lr-text-3); transition:transform .15s; display:inline-flex; }
+    #medisync-sidebar .lr-sec.lr-collapsed .lr-sec-caret{ transform:rotate(-90deg); }
+    #medisync-sidebar .lr-sec.lr-collapsed .lr-sec-body{ display:none; }
+    #medisync-sidebar .lr-sec-body{ display:flex; flex-direction:column; gap:10px; }
+    #medisync-sidebar .lr-slider-wrap input[type=range]{ -webkit-appearance:none; appearance:none; height:5px; border-radius:4px; background:linear-gradient(90deg, var(--lr-accent) var(--pct,50%), #1c2940 var(--pct,50%)); }
+    #medisync-sidebar .lr-slider-wrap input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:15px; height:15px; border-radius:50%; background:var(--lr-accent); cursor:pointer; box-shadow:0 0 0 3px rgba(7,12,22,.9),0 1px 4px rgba(0,0,0,.5); }
+    #medisync-sidebar .lr-slider-wrap input[type=range]::-moz-range-thumb{ width:15px; height:15px; border:none; border-radius:50%; background:var(--lr-accent); }
+
+    /* ---- Phase 3: settings panel + sidebar modes + left rail ---- */
+    .lr-settings-panel{ min-width:230px; display:flex; flex-direction:column; gap:12px; padding:12px; }
+    .lr-set-sec{ display:flex; flex-direction:column; gap:6px; }
+    .lr-set-title{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--lr-text-3); font-weight:600; }
+    .lr-set-seg{ display:flex; gap:4px; background:#0c1422; border:1px solid var(--lr-border); border-radius:8px; padding:3px; }
+    .lr-set-opt{ flex:1; padding:6px 4px; border-radius:6px; font-size:12px; color:var(--lr-text-2); background:none; border:0; cursor:pointer; }
+    .lr-set-opt:hover{ color:var(--lr-text); }
+    .lr-set-opt.active{ background:var(--lr-accent-soft); color:var(--lr-accent); box-shadow:inset 0 0 0 1px var(--lr-accent-line); }
+    .lr-set-swatches{ display:flex; gap:8px; }
+    .lr-set-sw{ width:22px; height:22px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; }
+    .lr-set-sw.active{ border-color:var(--lr-text); box-shadow:0 0 0 2px var(--lr-stage); }
+
+    #lr-sb-reopen{ position:fixed; right:14px; top:calc(var(--lr-tbh) + 14px); width:40px; height:40px; border-radius:10px; background:var(--lr-panel-2); border:1px solid var(--lr-border-2); color:var(--lr-accent); display:none; place-items:center; z-index:9990; box-shadow:0 8px 24px rgba(0,0,0,.5); cursor:pointer; }
+    html[data-lr-right="hidden"] #lr-sb-reopen{ display:grid; }
+    html[data-lr-rail="left"] #lr-sb-reopen{ top:14px; }
+
+    html[data-lr-right="floating"] #root{ padding-right:0 !important; }
+    html[data-lr-right="floating"] #medisync-sidebar{ top:calc(var(--lr-tbh) + 12px); right:12px; bottom:12px; width:252px; border:1px solid var(--lr-border-2); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.55); }
+    html[data-lr-right="hidden"] #root{ padding-right:0 !important; }
+    html[data-lr-right="hidden"] #medisync-sidebar{ display:none; }
+
+    html[data-lr-rail="left"] #medisync-toolbar{ flex-direction:column; height:auto; top:0; bottom:0; right:auto; width:64px; padding:10px 0; gap:8px; align-items:center; overflow-y:auto; overflow-x:hidden; border-bottom:0; border-right:1px solid var(--lr-border); }
+    html[data-lr-rail="left"] #root{ padding-top:0 !important; padding-left:64px !important; }
+    html[data-lr-rail="left"] #medisync-sidebar{ top:0; }
+    html[data-lr-rail="left"][data-lr-right="floating"] #medisync-sidebar{ top:12px; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-brand{ margin:0 0 4px; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-brand-text{ display:none; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-glabel{ display:none !important; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-grow{ flex-direction:column; gap:2px; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-mode-tabs{ flex-direction:column; margin-right:0; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-divider{ width:26px; height:1px; margin:4px 0; }
+    html[data-lr-rail="left"] #medisync-toolbar .lr-btn:hover::after{ top:50%; left:calc(100% + 10px); transform:translateY(-50%); }
+
+    /* ---- Sidebar demo-parity: header, section icons, cine button, overlay dim ---- */
+    #medisync-sidebar .lr-sb-head{ display:flex; align-items:center; justify-content:space-between; margin:-12px -12px 12px; padding:13px 14px; border-bottom:1px solid var(--lr-border); font-size:11px; letter-spacing:.1em; color:var(--lr-text-2); font-weight:600; }
+    #medisync-sidebar .lr-sb-head .lr-sb-title{ display:flex; align-items:center; gap:8px; }
+    #medisync-sidebar .lr-sb-head svg{ color:var(--lr-accent); }
+    #medisync-sidebar .lr-sb-x{ width:24px; height:24px; border-radius:6px; display:grid; place-items:center; color:var(--lr-text-3); background:none; border:0; cursor:pointer; }
+    #medisync-sidebar .lr-sb-x:hover{ background:var(--lr-panel-2); color:var(--lr-text); }
+    #medisync-sidebar .lr-sec-ico{ display:inline-flex; margin-right:6px; color:var(--lr-accent); vertical-align:-2px; }
+    #medisync-sidebar .lr-sec-ico svg{ width:13px; height:13px; }
+    #medisync-sidebar .lr-cine-play{ display:flex; align-items:center; justify-content:center; gap:9px; padding:10px; border-radius:9px; background:var(--lr-accent-soft); color:var(--lr-accent); font-weight:600; font-size:13px; border:1px solid var(--lr-accent-line); cursor:pointer; flex:1; }
+    #medisync-sidebar .lr-cine-play:hover{ background:color-mix(in srgb, var(--lr-accent) 22%, transparent); }
+    [class*="viewport-overlay"], .ViewportOverlay{ opacity:var(--lr-ovdim,1); }
+    /* Hide OHIF stock per-viewport cine bar — cine is driven from our sidebar only
+       (sidebar talks to cineService directly, so playback works without this bar).
+       [class*=] substring match catches every variant (CinePlayer, LegacyCinePlayer,
+       hashed/extended names); a JS sweep backstops portal-rendered bars. */
+    [class*="CinePlayer"]{ display:none !important; }
+    /* …and its positioning wrapper (bundle shows the cine bar mounts inside
+       "absolute left-1/2 bottom-3 -translate-x-1/2" within each viewport pane). */
+    div.absolute.left-1\\/2.bottom-3{ display:none !important; }
+    /* Disabled state for RIS-backed buttons when running standalone */
+    #medisync-toolbar .lr-btn.lr-disabled{ opacity:.32; cursor:not-allowed; }
+    #medisync-toolbar .lr-btn.lr-disabled:hover{ background:transparent; color:var(--lr-text-2); }
+    .lr-dropdown .lr-item.lr-disabled{ opacity:.4; cursor:not-allowed; }
+    .lr-dropdown .lr-item.lr-disabled:hover{ background:transparent; }
+
+    /* ---- Phase B: replace OHIF left StudyBrowser with custom "Loạt ảnh" panel ---- */
+    /* Left panel = same wrapper combo as the right one but WITHOUT ml-2 (right).
+       Match by exclusion so it works regardless of the left margin class. */
+    div.transition-all.duration-300.bg-black:not(.ml-2){ display:none !important; }
+    #root{ padding-left:var(--lr-lpw,270px) !important; }
+    html[data-lr-left="collapsed"] #root{ padding-left:46px !important; }
+    #medisync-left-panel{ position:fixed; top:var(--lr-tbh); left:0; bottom:0; width:var(--lr-lpw,270px); background:var(--lr-panel); border-right:1px solid var(--lr-border); color:var(--lr-text-2); font-family:var(--lr-font); display:flex; flex-direction:column; z-index:9989; overflow:hidden; }
+    #medisync-left-panel.lr-collapsed{ width:46px; align-items:center; }
+    .lr-lp-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 12px 8px; }
+    .lr-lp-title{ font-size:11px; letter-spacing:.08em; color:var(--lr-text-2); font-weight:600; }
+    .lr-lp-ver{ font-size:8px; letter-spacing:0; color:var(--lr-text-3); font-weight:400; opacity:.7; }
+    .lr-lp-collapse,.lr-lp-expand{ width:26px; height:26px; border-radius:7px; display:grid; place-items:center; color:var(--lr-text-3); background:none; border:0; cursor:pointer; }
+    .lr-lp-collapse:hover,.lr-lp-expand:hover{ background:var(--lr-panel-2); color:var(--lr-text); }
+    .lr-lp-expand{ margin-top:10px; color:var(--lr-text-2); background:var(--lr-panel-2); }
+    .lr-lp-collabel{ writing-mode:vertical-rl; font-size:10px; letter-spacing:.2em; color:var(--lr-text-3); margin-top:8px; }
+    .lr-lp-meta{ padding:0 12px 12px; display:flex; flex-direction:column; gap:4px; border-bottom:1px solid var(--lr-border); }
+    .lr-lp-patient{ font-size:12.5px; font-weight:600; color:var(--lr-text); }
+    .lr-lp-sub{ font-size:11px; color:var(--lr-text-3); font-family:var(--lr-mono); }
+    .lr-lp-modtag{ align-self:flex-start; font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--lr-accent); background:var(--lr-accent-soft); padding:2px 7px; border-radius:5px; }
+    .lr-lp-sdesc{ font-size:12px; color:var(--lr-text); font-weight:500; line-height:1.3; }
+    .lr-lp-list{ flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
+    .lr-lp-empty{ padding:14px; font-size:11px; color:var(--lr-text-3); }
+    .lr-lp-series{ display:flex; gap:10px; padding:7px; border-radius:10px; border:1px solid transparent; background:#0d1422; text-align:left; cursor:pointer; transition:.12s; width:100%; }
+    .lr-lp-series:hover{ background:var(--lr-panel-2); border-color:var(--lr-border); }
+    .lr-lp-series.sel{ background:var(--lr-accent-soft); border-color:var(--lr-accent-line); }
+    .lr-lp-thumb{ width:60px; height:60px; flex:none; border-radius:7px; overflow:hidden; position:relative; background:#000; box-shadow:inset 0 0 0 1px var(--lr-border); display:block; }
+    .lr-lp-thumb img{ width:100%; height:100%; object-fit:contain; display:block; background:#000; }
+    .lr-lp-thumb.lr-lp-noimg::after{ content:""; position:absolute; inset:0; display:grid; place-items:center; }
+    .lr-lp-thumb.lr-lp-noimg{ background:linear-gradient(135deg,#0d1422,#111a2b); }
+    .lr-lp-thumbno{ position:absolute; bottom:2px; right:3px; font-family:var(--lr-mono); font-size:9px; color:#cbd5e1; background:rgba(0,0,0,.6); padding:0 4px; border-radius:4px; }
+    .lr-lp-sinfo{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .lr-lp-sno{ font-size:12.5px; font-weight:600; color:var(--lr-text); display:flex; align-items:center; gap:6px; }
+    .lr-lp-smod{ font-size:9.5px; font-weight:700; color:var(--lr-text-3); border:1px solid var(--lr-border-2); border-radius:4px; padding:0 4px; }
+    .lr-lp-sdesc2{ font-size:11.5px; color:var(--lr-text-2); line-height:1.3; }
+    .lr-lp-scount{ font-size:10px; color:var(--lr-text-3); }
+    .lr-lp-prior{ margin:8px; padding:11px; border-radius:10px; background:var(--lr-panel-2); border:1px solid var(--lr-border); color:var(--lr-text); font-size:12px; font-weight:600; letter-spacing:.04em; display:flex; align-items:center; gap:9px; cursor:pointer; }
+    .lr-lp-prior:hover{ border-color:var(--lr-accent-line); color:var(--lr-accent); }
+    .lr-lp-prior svg{ color:var(--lr-accent); }
+    #medisync-left-panel::-webkit-scrollbar,.lr-lp-list::-webkit-scrollbar{ width:9px; }
+    #medisync-left-panel ::-webkit-scrollbar-thumb{ background:#2a3855; border-radius:6px; }
+    html[data-lr-rail="left"] #medisync-left-panel{ top:0; left:64px; }
+    html[data-lr-rail="left"] #root{ padding-left:calc(64px + var(--lr-lpw,270px)) !important; }
+    html[data-lr-rail="left"][data-lr-left="collapsed"] #root{ padding-left:calc(64px + 46px) !important; }
+    `,
   ].join('\n');
 
   function injectCSS() {
@@ -524,6 +779,40 @@
       commandOptions: { window: String(arg.w), level: String(arg.l) },
       context: 'CORNERSTONE',
     });
+  }
+
+  // Live WW/WC of the active viewport (voiRange → width/center) — feeds the
+  // sidebar Width/Center sliders.
+  function getCurrentWL() {
+    try {
+      var grid = window.services.viewportGridService.getState();
+      var id = grid && grid.activeViewportId;
+      if (!id) return null;
+      var engines = window.cornerstone.getRenderingEngines() || [];
+      for (var i = 0; i < engines.length; i++) {
+        var vp; try { vp = engines[i].getViewport(id); } catch (e) {}
+        if (!vp || !vp.getProperties) continue;
+        var r = (vp.getProperties() || {}).voiRange;
+        if (!r) return null;
+        return { ww: Math.round(r.upper - r.lower), wc: Math.round((r.upper + r.lower) / 2) };
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // Set one half of W/L from a slider, keeping the other half at its live value.
+  function setWLValue(which, val) {
+    var cur = getCurrentWL() || { ww: 400, wc: 40 };
+    var ww = which === 'ww' ? +val : cur.ww;
+    var wc = which === 'wc' ? +val : cur.wc;
+    if (ww < 1) ww = 1;
+    try {
+      window.commandsManager.run({
+        commandName: 'setWindowLevel',
+        commandOptions: { window: String(ww), level: String(wc) },
+        context: 'CORNERSTONE',
+      });
+    } catch (e) { console.warn('[Medisync sidebar] setWLValue failed', e); }
   }
 
   // "Mặc định" — restore the WindowCenter / WindowWidth values encoded in
@@ -644,6 +933,15 @@
     if (item.dropdown || item.dynamicDropdown) b.dataset.hasDropdown = '1';
     if (item.style) b.style.cssText = item.style;
     b.innerHTML = svgIcon(item.svg);
+    if (item.requiresHost && LR_STANDALONE) {
+      b.classList.add('lr-disabled');
+      b.dataset.tip = item.tip.replace(' ▾', '') + ' — cần mở từ RIS';
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        _toast('Chức năng này chỉ khả dụng khi mở viewer từ RIS', 'warn');
+      };
+      return b;
+    }
     b.onclick = function (ev) {
       ev.stopPropagation();
       // Toggle: if this same button's dropdown is already open, close it.
@@ -669,6 +967,115 @@
     return b;
   }
 
+  // ============================================================
+  // Phase 3 — UI preference variants (density / rail / right / accent)
+  // Persisted to localStorage; applied as data-attrs + --lr-accent on <html>.
+  // CSS in TOOLBAR_CSS responds to html[data-lr-rail|density|right].
+  // ============================================================
+  var UI_PREFS_KEY = 'medisync_ui_prefs';
+  var UI_DEFAULTS = { rail: 'top', right: 'docked', density: 'regular', accent: '#5acce6' };
+  var uiPrefs = (function () {
+    try { return Object.assign({}, UI_DEFAULTS, JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}')); }
+    catch (e) { return Object.assign({}, UI_DEFAULTS); }
+  })();
+  function saveUIPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) {} }
+
+  var GEAR_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+
+  function ensureReopenButton() {
+    if (document.getElementById('lr-sb-reopen')) return;
+    var btn = document.createElement('button');
+    btn.id = 'lr-sb-reopen';
+    btn.title = 'Mở lại bảng điều khiển';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>';
+    btn.onclick = function () { uiPrefs.right = 'docked'; saveUIPrefs(); applyUIPrefs(); };
+    document.body.appendChild(btn);
+  }
+
+  function applyUIPrefs() {
+    var de = document.documentElement;
+    de.setAttribute('data-lr-rail', uiPrefs.rail || 'top');
+    de.setAttribute('data-lr-density', uiPrefs.density || 'regular');
+    de.setAttribute('data-lr-right', uiPrefs.right || 'docked');
+    de.style.setProperty('--lr-accent', uiPrefs.accent || '#5acce6');
+    ensureReopenButton();
+  }
+
+  function buildSettingsButton() {
+    var b = document.createElement('button');
+    b.className = 'lr-btn lr-settings-btn';
+    b.id = 'lr-btn-uisettings';
+    b.dataset.tip = 'Tùy chỉnh giao diện';
+    b.innerHTML = GEAR_SVG;
+    b.onclick = function (ev) { ev.stopPropagation(); toggleSettingsPanel(b); };
+    return b;
+  }
+
+  var _settingsPanel = null;
+  function _settingsOutside(e) {
+    if (_settingsPanel && !_settingsPanel.contains(e.target) && !(e.target.closest && e.target.closest('#lr-btn-uisettings'))) closeSettingsPanel();
+  }
+  function closeSettingsPanel() {
+    if (!_settingsPanel) return;
+    _settingsPanel.remove(); _settingsPanel = null;
+    document.removeEventListener('mousedown', _settingsOutside, true);
+  }
+  function toggleSettingsPanel(anchor) { if (_settingsPanel) { closeSettingsPanel(); return; } openSettingsPanel(anchor); }
+  function openSettingsPanel(anchor) {
+    var p = document.createElement('div');
+    p.className = 'lr-dropdown lr-settings-panel';
+    function seg(title, key, opts) {
+      var sec = document.createElement('div'); sec.className = 'lr-set-sec';
+      var h = document.createElement('div'); h.className = 'lr-set-title'; h.textContent = title; sec.appendChild(h);
+      var row = document.createElement('div'); row.className = 'lr-set-seg';
+      opts.forEach(function (o) {
+        var btn = document.createElement('button');
+        btn.className = 'lr-set-opt' + (uiPrefs[key] === o.v ? ' active' : '');
+        btn.textContent = o.l;
+        btn.onclick = function () {
+          uiPrefs[key] = o.v; saveUIPrefs(); applyUIPrefs();
+          // Right-mode change toggles the sidebar's ✕ button → rebuild it now.
+          if (key === 'right') renderSidebar();
+          row.querySelectorAll('.lr-set-opt').forEach(function (x) { x.classList.remove('active'); });
+          btn.classList.add('active');
+        };
+        row.appendChild(btn);
+      });
+      sec.appendChild(row); return sec;
+    }
+    p.appendChild(seg('Mật độ', 'density', [{ l: 'Gọn', v: 'compact' }, { l: 'Vừa', v: 'regular' }, { l: 'Thoáng', v: 'comfy' }]));
+    p.appendChild(seg('Thanh công cụ', 'rail', [{ l: 'Trên', v: 'top' }, { l: 'Trái', v: 'left' }]));
+    p.appendChild(seg('Bảng phải', 'right', [{ l: 'Cố định', v: 'docked' }, { l: 'Nổi', v: 'floating' }, { l: 'Ẩn', v: 'hidden' }]));
+    var asec = document.createElement('div'); asec.className = 'lr-set-sec';
+    var ah = document.createElement('div'); ah.className = 'lr-set-title'; ah.textContent = 'Màu nhấn'; asec.appendChild(ah);
+    var arow = document.createElement('div'); arow.className = 'lr-set-swatches';
+    ['#5acce6', '#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa'].forEach(function (c) {
+      var sw = document.createElement('button');
+      sw.className = 'lr-set-sw' + (uiPrefs.accent === c ? ' active' : '');
+      sw.style.background = c;
+      sw.onclick = function () {
+        uiPrefs.accent = c; saveUIPrefs(); applyUIPrefs();
+        arow.querySelectorAll('.lr-set-sw').forEach(function (x) { x.classList.remove('active'); });
+        sw.classList.add('active');
+      };
+      arow.appendChild(sw);
+    });
+    asec.appendChild(arow); p.appendChild(asec);
+
+    document.body.appendChild(p);
+    var r = anchor.getBoundingClientRect();
+    p.style.top = (r.bottom + 6) + 'px';
+    var left = Math.min(r.right - p.offsetWidth, window.innerWidth - p.offsetWidth - 8);
+    p.style.left = Math.max(8, left) + 'px';
+    _settingsPanel = p;
+    setTimeout(function () { document.addEventListener('mousedown', _settingsOutside, true); }, 0);
+  }
+
+  // Toolbar button-groups (delimited by divider/spacer) get a small uppercase
+  // label shown only in 'comfy' density. Order matches TOOLBAR layout.
+  var GROUP_LABELS = ['Hiển thị', 'Đo đạc', 'Biến đổi', 'Bố cục', 'Xuất'];
+  var LOGO_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
+
   function renderToolbar() {
     var bar = document.getElementById('medisync-toolbar');
     if (!bar) {
@@ -677,23 +1084,40 @@
       document.body.appendChild(bar);
     }
     bar.innerHTML = '';
-    TOOLBAR.forEach(function (item) {
-      if (item.type === 'mode-tabs') bar.appendChild(buildModeTabs());
-      else if (item.type === 'divider') {
-        var d = document.createElement('div'); d.className = 'lr-divider'; bar.appendChild(d);
-      }
-      else if (item.type === 'spacer') {
-        var s = document.createElement('div'); s.className = 'lr-spacer'; bar.appendChild(s);
-      }
-      else if (item.type === 'btn') {
-        bar.appendChild(buildButton(item));
-      }
-    });
-    // Branding on the right edge
+
+    // Brand (left) with gradient logo mark
     var brand = document.createElement('div');
     brand.className = 'lr-brand';
-    brand.textContent = 'MEDISYNC PACS';
+    brand.innerHTML = '<span class="lr-logo-mark">' + LOGO_SVG + '</span>'
+      + '<span class="lr-brand-text">MEDISYNC <b>PACS</b></span>';
     bar.appendChild(brand);
+
+    // Buttons between dividers/spacers are wrapped in a .lr-tb-group (row + label).
+    var groupIdx = 0, curRow = null;
+    function flush() { curRow = null; }
+    function ensureGroup() {
+      if (curRow) return;
+      var g = document.createElement('div'); g.className = 'lr-tb-group';
+      curRow = document.createElement('div'); curRow.className = 'lr-grow';
+      var lab = document.createElement('div'); lab.className = 'lr-glabel';
+      lab.textContent = GROUP_LABELS[groupIdx] || '';
+      g.appendChild(curRow); g.appendChild(lab);
+      bar.appendChild(g);
+      groupIdx++;
+    }
+    TOOLBAR.forEach(function (item) {
+      if (item.type === 'mode-tabs') { flush(); bar.appendChild(buildModeTabs()); }
+      else if (item.type === 'divider') { flush(); var d = document.createElement('div'); d.className = 'lr-divider'; bar.appendChild(d); }
+      else if (item.type === 'spacer') { flush(); var s = document.createElement('div'); s.className = 'lr-spacer'; bar.appendChild(s); }
+      else if (item.type === 'btn') { ensureGroup(); curRow.appendChild(buildButton(item)); }
+    });
+
+    // UI settings (gear) on the right edge — Phase 3
+    bar.appendChild(buildSettingsButton());
+
+    // Re-apply UI variant prefs (data-attrs survive on <html>, but ensures the
+    // reopen button + accent are in place after each re-render / MutationObserver).
+    applyUIPrefs();
   }
 
   // ============================================================
@@ -757,6 +1181,16 @@
       var row = document.createElement('div');
       row.className = 'lr-item';
       row.textContent = it.label;
+      if (it.requiresHost && LR_STANDALONE) {
+        row.classList.add('lr-disabled');
+        row.title = 'Chỉ khả dụng khi mở viewer từ RIS';
+        row.onclick = function (ev) {
+          ev.stopPropagation();
+          _toast('Chức năng này chỉ khả dụng khi mở viewer từ RIS', 'warn');
+        };
+        dd.appendChild(row);
+        return;
+      }
       row.onclick = function (ev) {
         ev.stopPropagation();
         closeDropdown();
@@ -953,6 +1387,7 @@
   function lrApi(method, path, body) {
     var corr = 'api-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     return new Promise(function (resolve, reject) {
+      if (LR_STANDALONE) { reject(new Error('Chỉ khả dụng khi mở viewer từ RIS')); return; }
       _apiPending[corr] = { resolve: resolve, reject: reject };
       try {
         window.parent.postMessage({ source: 'medisync-iframe', type: 'lr:api', correlationId: corr, method: method, path: path, body: body }, '*');
@@ -1085,7 +1520,7 @@
     if (_loadJSZip._promise) return _loadJSZip._promise;
     _loadJSZip._promise = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      s.src = '/jszip.min.js'; // self-hosted — CDN is blocked by COEP require-corp
       s.onload = function () { window.JSZip ? resolve(window.JSZip) : reject(new Error('JSZip global missing after load')); };
       s.onerror = function () { reject(new Error('Failed to load JSZip from CDN')); };
       document.head.appendChild(s);
@@ -1395,15 +1830,33 @@
       .catch(function (err) { _toast('Lỗi xóa ca: ' + err.message, 'error'); });
   }
 
-  function togglePatientOverlay() {
-    document.body.classList.toggle('lr-hide-overlays');
-    var hidden = document.body.classList.contains('lr-hide-overlays');
-    console.log('[Medisync toolbar] Patient overlay →', hidden ? 'hidden' : 'shown');
+  // Bare call (Info ▾ dropdown) flips; boolean arg (sidebar checkbox) acts as an
+  // idempotent setter — arg = "show overlay" / "anonymize on".
+  function togglePatientOverlay(arg) {
+    var hide = (typeof arg === 'boolean') ? !arg : !document.body.classList.contains('lr-hide-overlays');
+    document.body.classList.toggle('lr-hide-overlays', hide);
+    console.log('[Medisync toolbar] Patient overlay →', hide ? 'hidden' : 'shown');
   }
-  function toggleAnonymizeOverlay() {
-    document.body.classList.toggle('lr-anonymize');
-    var on = document.body.classList.contains('lr-anonymize');
-    console.log('[Medisync toolbar] Anonymize →', on ? 'on (PHI blurred)' : 'off');
+  function isPatientOverlayShown() { return !document.body.classList.contains('lr-hide-overlays'); }
+  function toggleAnonymizeOverlay(arg) {
+    var on = (typeof arg === 'boolean') ? arg : !document.body.classList.contains('lr-anonymize');
+    document.body.classList.toggle('lr-anonymize', on);
+    // Text replacement everywhere: refresh ONLY the left panel's meta block
+    // (a full renderLeftPanel would tear down the series list and re-fetch
+    // thumbnails) + rewrite/restore the corner overlays right away.
+    try { updateLeftPanelMeta(); } catch (e) {}
+    try { _anonOverlaySweep(); } catch (e) {}
+    console.log('[Medisync toolbar] Anonymize →', on ? 'on (renamed)' : 'off');
+  }
+  function isAnonymizeOn() { return document.body.classList.contains('lr-anonymize'); }
+  // Overlay opacity (demo's "Độ sáng" slider) — drives a CSS var on <html>.
+  function setOverlayDim(pct) {
+    var v = Math.max(20, Math.min(100, +pct || 100)) / 100;
+    document.documentElement.style.setProperty('--lr-ovdim', v);
+  }
+  function getOverlayDim() {
+    var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lr-ovdim'));
+    return isFinite(v) && v > 0 ? Math.round(v * 100) : 100;
   }
 
   // ---- MPR-specific: blend mode + slab thickness ----
@@ -1717,33 +2170,117 @@
     }
     eachVolumeViewport(function (vp) { vp.setBlendMode(modeVal); });
     console.log('[Medisync sidebar] MPR blend mode →', modeName);
+
+    // Auto-slab: a projection over a single thin slice renders identically to a
+    // plain slice, which reads as "the button does nothing". Standard viewer
+    // behavior: picking a projection bumps the slab to a useful value; going
+    // back to plain MPR returns to the native thin slice.
+    if (arg === 'AVERAGE' || arg === 'MAXIMUM' || arg === 'MINIMUM') {
+      if (!getSlabThickness()) { // null (no viewport) won't happen here; 0 = thin slice
+        setSlabThickness(AUTO_SLAB_MM);
+        syncSlabSliderUI(AUTO_SLAB_MM);
+      }
+    } else if (arg === 'COMPOSITE') {
+      setSlabThickness(0);
+      syncSlabSliderUI(0);
+    }
   }
 
+  var AUTO_SLAB_MM = 10;
+  function syncSlabSliderUI(v) {
+    var el = document.querySelector('#medisync-sidebar input[type="range"][data-lr-fn="setSlabThickness"]');
+    if (el && typeof el._lrSync === 'function') el._lrSync(v);
+  }
+
+  // Cornerstone's initial slab is a thin single slice (~0.05mm / native slice
+  // spacing) — NOT the slider's old 5mm default, which was never actually
+  // applied. Slider position 0 now represents that native thin-slice state so
+  // the UI shows the truth on first render AND can return to it later.
+  var THIN_SLAB_MM = 0.05;
   function setSlabThickness(mm) {
+    var v = (+mm > 0) ? +mm : THIN_SLAB_MM;
     eachVolumeViewport(function (vp) {
-      if (typeof vp.setSlabThickness === 'function') vp.setSlabThickness(mm);
+      if (typeof vp.setSlabThickness === 'function') vp.setSlabThickness(v);
     });
-    console.log('[Medisync sidebar] slab thickness →', mm, 'mm');
+    console.log('[Medisync sidebar] slab thickness →', v, 'mm');
   }
 
-  function toggleMPRCrossline() {
-    // MPR Crossline = Crosshairs tool active on all 3 viewports.
-    // Use our existing toolbar crosshairs button by toggling Crosshairs tool active/passive.
+  // Current slab from the first volume viewport — seeds the sidebar slider so a
+  // re-render doesn't lie. Values below 1mm (native thin slice) map to slider 0.
+  function getSlabThickness() {
+    var val = null;
+    eachVolumeViewport(function (vp) {
+      if (val == null && typeof vp.getSlabThickness === 'function') {
+        try { val = vp.getSlabThickness(); } catch (e) {}
+      }
+    });
+    if (typeof val !== 'number' || !isFinite(val)) return null;
+    return (val < 1) ? 0 : Math.round(val);
+  }
+
+  function _crosshairsActive() {
     try {
       var cst = window.cornerstoneTools;
-      if (!cst || !cst.ToolGroupManager) return;
-      var tg = cst.ToolGroupManager.getToolGroup('mpr') || cst.ToolGroupManager.getToolGroup('default');
-      if (!tg) return;
-      var opts = tg.getToolOptions ? tg.getToolOptions('Crosshairs') : null;
-      var currentlyActive = opts && opts.mode === 'Active';
-      if (currentlyActive) {
-        tg.setToolPassive('Crosshairs');
-        console.log('[Medisync sidebar] Crossline → off');
-      } else {
-        tg.setToolActive('Crosshairs', { bindings: [{ mouseButton: cst.Enums.MouseBindings.Primary }] });
+      if (!cst || !cst.ToolGroupManager) return false;
+      var tgs = cst.ToolGroupManager.getAllToolGroups ? cst.ToolGroupManager.getAllToolGroups()
+        : [cst.ToolGroupManager.getToolGroup('mpr'), cst.ToolGroupManager.getToolGroup('default')].filter(Boolean);
+      for (var i = 0; i < tgs.length; i++) {
+        var o = tgs[i].getToolOptions ? tgs[i].getToolOptions('Crosshairs') : null;
+        if (o && o.mode === 'Active') return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function toggleMPRCrossline(desired) {
+    // MPR Crossline = Crosshairs tool on the MPR viewports.
+    // The sidebar checkbox passes its checked state (idempotent setter); a bare
+    // call (no arg) still flips. Go through runItem → OHIF's setToolActive so the
+    // previous primary-button tool is properly released (direct
+    // toolGroup.setToolActive left two tools bound to left-drag), and on OFF
+    // re-arm WindowLevel as the resting tool (same convention as toolbar toggle-off).
+    try {
+      var current = _crosshairsActive();
+      var want = (typeof desired === 'boolean') ? desired : !current;
+      if (want === current) return;
+      if (want) {
+        runItem({ tool: 'Crosshairs', id: 'crosshairs' });
         console.log('[Medisync sidebar] Crossline → on');
+      } else {
+        runItem({ tool: 'WindowLevel', id: 'wl' });
+        console.log('[Medisync sidebar] Crossline → off (về W/L)');
       }
     } catch (e) { console.warn('[Medisync sidebar] toggleMPRCrossline failed', e); }
+  }
+
+  // Reference Lines: a line drawn on the OTHER MPR viewports showing the current
+  // slice plane of the active viewport — updates live as you scroll. The tool is
+  // already added (enabled) on OHIF's 'mpr' tool group; OHIF just needs the
+  // active viewport set as the source. Re-runs on mode-enter + active-vp change.
+  function enableReferenceLines() {
+    try {
+      if (!window.commandsManager) return;
+      window.commandsManager.run({
+        commandName: 'setSourceViewportForReferenceLinesTool',
+        context: 'CORNERSTONE',
+      });
+    } catch (e) { console.warn('[Medisync] enableReferenceLines failed', e); }
+  }
+
+  var _refLinesSubscribed = false;
+  function subscribeReferenceLines() {
+    if (_refLinesSubscribed) return;
+    var vgs = window.services && window.services.viewportGridService;
+    if (!vgs || !vgs.subscribe || !vgs.EVENTS || !vgs.EVENTS.ACTIVE_VIEWPORT_ID_CHANGED) {
+      setTimeout(subscribeReferenceLines, 1000);
+      return;
+    }
+    try {
+      vgs.subscribe(vgs.EVENTS.ACTIVE_VIEWPORT_ID_CHANGED, function () {
+        if (currentMode === 'mpr' || currentMode === '3d') enableReferenceLines();
+      });
+      _refLinesSubscribed = true;
+    } catch (e) { setTimeout(subscribeReferenceLines, 1000); }
   }
 
   // ---- 3D-specific ----
@@ -1755,8 +2292,11 @@
       engines.forEach(function (re) {
         var vps = (re && re.getVolumeViewports) ? re.getVolumeViewports() : [];
         vps.forEach(function (vp) {
-          // VolumeViewport3D has resetCamera + getCamera + setOrientation
-          if (vp && (vp.type === 'volume3d' || typeof vp.resetCamera === 'function')) {
+          // ONLY the true 3D pane. The old fallback (`typeof vp.resetCamera ===
+          // 'function'`) matched every volume viewport — including the three
+          // orthographic MPR panes of the medisync3D layout — so orbit/snap
+          // spun the MPR slices too.
+          if (vp && vp.type === 'volume3d') {
             fn(vp); hit++;
           }
         });
@@ -1816,30 +2356,57 @@
 
   // Continuous orbit animation (pure stub — wiring requires vtk camera API)
   var orbitTimer = null;
-  function toggle3DOrbit() {
+  function stopOrbit() {
     if (orbitTimer) {
       clearInterval(orbitTimer); orbitTimer = null;
       console.log('[Medisync sidebar] 3D Batch orbit → stopped');
-      return;
     }
-    var degPerFrame = 2;
+  }
+  function is3DOrbitOn() { return !!orbitTimer; }
+
+  // Orbit speed in degrees/second — read every tick, so the slider takes
+  // effect live mid-rotation. 20°/s = one revolution in 18s.
+  var _orbitDegPerSec = 20;
+  function setOrbitSpeed(v) { _orbitDegPerSec = Math.max(5, Math.min(90, +v || 20)); }
+  function getOrbitSpeed() { return _orbitDegPerSec; }
+
+  // Checkbox-driven idempotent setter (bare call still flips). Auto-stopped on
+  // mode/series/study changes — a timer surviving those kept spinning unseen
+  // (and, with the old broad filter, spun MPR panes after leaving 3D).
+  function toggle3DOrbit(desired) {
+    var want = (typeof desired === 'boolean') ? desired : !orbitTimer;
+    if (!want) { stopOrbit(); return; }
+    if (orbitTimer) return;
+    // Orbit the PATIENT's vertical (head-foot, +Z) axis — the same ring the
+    // A → L → P → R snap buttons live on, just continuous. The old version
+    // rotated around the camera's CURRENT viewUp, so starting from any tilted
+    // state produced an arbitrary tumble. Parametric azimuth θ:
+    //   viewPlaneNormal(θ) = [sinθ, −cosθ, 0]  (θ=0° → A, 90° → L, 180° → P, 270° → R)
+    // seeded from the camera's current azimuth so the sweep starts where you are.
+    var theta = null;
     orbitTimer = setInterval(function () {
       each3DViewport(function (vp) {
         try {
           var cam = vp.getCamera();
-          // rotate viewPlaneNormal around viewUp by degPerFrame
-          var rad = degPerFrame * Math.PI / 180;
-          var n = cam.viewPlaneNormal;
-          var u = cam.viewUp;
-          // simple rotation around viewUp axis (assumes axis is unit)
-          var cos = Math.cos(rad), sin = Math.sin(rad);
-          // Rodrigues rotation of n around u
-          var dot = n[0]*u[0] + n[1]*u[1] + n[2]*u[2];
-          var cross = [u[1]*n[2]-u[2]*n[1], u[2]*n[0]-u[0]*n[2], u[0]*n[1]-u[1]*n[0]];
-          var nx = n[0]*cos + cross[0]*sin + u[0]*dot*(1-cos);
-          var ny = n[1]*cos + cross[1]*sin + u[1]*dot*(1-cos);
-          var nz = n[2]*cos + cross[2]*sin + u[2]*dot*(1-cos);
-          if (typeof vp.setCamera === 'function') vp.setCamera({ viewPlaneNormal: [nx, ny, nz] });
+          var fp = cam.focalPoint, pos = cam.position;
+          var dx = pos[0] - fp[0], dy = pos[1] - fp[1], dz = pos[2] - fp[2];
+          var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+          if (theta === null) theta = Math.atan2(dx, -dy); // azimuth of current camera
+          theta += (_orbitDegPerSec * 0.05) * Math.PI / 180; // 50ms tick
+          var n = [Math.sin(theta), -Math.cos(theta), 0];
+          if (typeof vp.setCamera === 'function') {
+            // Move the CAMERA around the (fixed) focal point. Passing only
+            // viewPlaneNormal makes cs3D keep `position` and displace
+            // `focalPoint` instead — the camera stood still panning its head
+            // into empty space (black viewport), and stopping left the
+            // focal point stranded off-volume.
+            vp.setCamera({
+              viewUp: [0, 0, 1],
+              viewPlaneNormal: n,
+              focalPoint: fp,
+              position: [fp[0] + n[0] * dist, fp[1] + n[1] * dist, fp[2] + n[2] * dist],
+            });
+          }
         } catch (e) { /* skip if no camera */ }
       });
     }, 50);
@@ -3051,12 +3618,26 @@
     deleteAllAnnotations: deleteAllAnnotations,
     togglePatientOverlay: togglePatientOverlay,
     toggleAnonymizeOverlay: toggleAnonymizeOverlay,
+    isPatientOverlayShown: isPatientOverlayShown,
+    isAnonymizeOn: isAnonymizeOn,
+    setOverlayDim: function (v) { setOverlayDim(v); },
+    getOverlayDim: function () { return getOverlayDim(); },
+    setCineFps: function (v) { cineSetFps(v); },
+    cineTogglePlay: function () { cineTogglePlay(); },
+    setWLWidth: function (v) { setWLValue('ww', v); },
+    setWLCenter: function (v) { setWLValue('wc', v); },
+    getWLWidth: function () { var w = getCurrentWL(); return w ? w.ww : null; },
+    getWLCenter: function () { var w = getCurrentWL(); return w ? w.wc : null; },
     setMPRBlendMode: function (arg) { setMPRBlendMode(arg); },
     setSlabThickness: function (mm) { setSlabThickness(mm); },
+    getSlabThickness: function () { return getSlabThickness(); },
     toggleMPRCrossline: toggleMPRCrossline,
     set3DOrientation: function (arg) { set3DOrientation(arg); },
     set3DRenderMode: function (arg) { set3DRenderMode(arg); },
     toggle3DOrbit: toggle3DOrbit,
+    is3DOrbitOn: is3DOrbitOn,
+    setOrbitSpeed: function (v) { setOrbitSpeed(v); },
+    getOrbitSpeed: function () { return getOrbitSpeed(); },
     toggle3DBox: toggle3DBox,
     toggle3DCursor: toggle3DCursor,
     toggleRotateAroundCursor: toggleRotateAroundCursor,
@@ -3107,9 +3688,8 @@
   var SIDEBAR_2D = {
     sections: [
       {
-        title: 'W/L Presets',
-        type: 'pills',
-        dynamicItems: 'wl',
+        title: 'Cửa sổ (W/L)',
+        type: 'wl',
         hint: 'Mặc định = giữ W/L gốc của DICOM',
       },
       {
@@ -3164,18 +3744,20 @@
           { label: 'MinIP', tip: 'Min IP — air',     fn: 'setMPRBlendMode', arg: 'MINIMUM' },
           { label: 'VR',    tip: 'Volume render',  fn: 'setMPRBlendMode', arg: 'VOLUME' },
         ],
-        hint: 'AIP/MIP/MinIP yêu cầu Slab Thickness > 1mm',
+        hint: 'Chọn AIP/MIP/MinIP tự đặt slab 10mm · chọn MPR trả về lát đơn',
       },
       {
         title: 'Slab Thickness',
         type: 'slider',
-        min: 1,
+        min: 0,
         max: 60,
         step: 1,
-        defaultValue: 5,
+        defaultValue: 0,
         unit: 'mm',
+        zeroLabel: 'Gốc (lát đơn)',
         fn: 'setSlabThickness',
-        presets: [1, 5, 10, 20, 30, 50],
+        getCurrentFn: 'getSlabThickness',
+        presets: [0, 5, 10, 20, 30, 50],
       },
       {
         title: 'Tùy chọn',
@@ -3243,11 +3825,11 @@
       },
       {
         title: '3D Batch (xoay tự động)',
-        type: 'pills',
-        cols: 1,
+        type: 'checks',
         items: [
-          { label: '▶ Bắt đầu / dừng xoay 3D', tip: 'Orbit camera around volume', fn: 'toggle3DOrbit' },
+          { label: 'Xoay tự động quanh khối (orbit)', fn: 'toggle3DOrbit', getCheckedFn: 'is3DOrbitOn' },
         ],
+        extraSlider: { label: 'Tốc độ', min: 5, max: 90, step: 5, defaultValue: 20, unit: '°/s', fn: 'setOrbitSpeed', getCurrentFn: 'getOrbitSpeed' },
       },
       {
         title: 'Tùy chọn',
@@ -3352,9 +3934,25 @@
     ],
   };
 
+  // Shared "Hiển thị" section (demo-parity) — appended to every sidebar.
+  // Checkboxes are idempotent setters with live-state getters; the same
+  // functions remain reachable from the toolbar Info ▾ dropdown.
+  var SEC_DISPLAY = {
+    title: 'Hiển thị',
+    type: 'checks',
+    icon: 'info',
+    items: [
+      { label: 'Đảo màu (Invert)',   cmd: 'invertViewport' },
+      { label: 'Overlay thông tin',  fn: 'togglePatientOverlay',  getCheckedFn: 'isPatientOverlayShown' },
+      { label: 'Ẩn danh bệnh nhân',  fn: 'toggleAnonymizeOverlay', getCheckedFn: 'isAnonymizeOn' },
+    ],
+    extraSlider: { label: 'Độ mờ overlay', min: 20, max: 100, step: 5, defaultValue: 100, unit: '%', fn: 'setOverlayDim', getCurrentFn: 'getOverlayDim' },
+  };
+  [SIDEBAR_2D, SIDEBAR_MPR, SIDEBAR_3D, SIDEBAR_MAMMO].forEach(function (s) { s.sections.push(SEC_DISPLAY); });
+
   var SIDEBARS = { '2d': SIDEBAR_2D, 'mpr': SIDEBAR_MPR, '3d': SIDEBAR_3D, 'mammo': SIDEBAR_MAMMO };
 
-  function buildPills(items, cols) {
+  function buildPills(items, cols, onAfter) {
     var grid = document.createElement('div');
     grid.className = 'lr-pill-grid';
     if (cols && cols !== 2) {
@@ -3368,10 +3966,32 @@
       b.onclick = function () {
         markActiveSibling(b);
         runItem(it);
+        if (onAfter) onAfter(it);
       };
       grid.appendChild(b);
     });
     return grid;
+  }
+
+  // W/L section (demo-parity): preset pills + live Width/Center sliders.
+  function buildWLSection(sec) {
+    var box = document.createElement('div');
+    box.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+    var widthSlider = buildSlider({ label: 'Width',  min: 1,     max: 4000, step: 1, defaultValue: 400, fn: 'setWLWidth',  getCurrentFn: 'getWLWidth' });
+    var centerSlider = buildSlider({ label: 'Center', min: -1000, max: 1000, step: 1, defaultValue: 40,  fn: 'setWLCenter', getCurrentFn: 'getWLCenter' });
+    function syncSliders() {
+      var wl = getCurrentWL();
+      if (!wl) return;
+      var wi = widthSlider.querySelector('input'), ci = centerSlider.querySelector('input');
+      if (wi && wi._lrSync) wi._lrSync(wl.ww);
+      if (ci && ci._lrSync) ci._lrSync(wl.wc);
+    }
+    // Preset pill → VOI changes async; re-read shortly after so sliders follow.
+    var pills = buildPills(resolveDynamicPills('wl'), sec.cols, function () { setTimeout(syncSliders, 200); });
+    box.appendChild(pills);
+    box.appendChild(widthSlider);
+    box.appendChild(centerSlider);
+    return box;
   }
 
   function buildSlider(sec) {
@@ -3379,17 +3999,36 @@
     wrap.className = 'lr-slider-wrap';
     var input = document.createElement('input');
     input.type = 'range';
-    input.min = sec.min || 1;
+    input.min = (sec.min != null) ? sec.min : 1;   // != null: 0 is a valid min
     input.max = sec.max || 60;
     input.step = sec.step || 1;
-    input.value = sec.defaultValue || sec.min || 1;
+    // Seed from live viewport state when available (survives sidebar re-renders).
+    var cur = null;
+    if (sec.getCurrentFn) {
+      var getter = LR_FUNCS[sec.getCurrentFn];
+      if (typeof getter === 'function') { try { cur = getter(); } catch (e) {} }
+    }
+    input.value = (cur != null) ? cur : (sec.defaultValue != null ? sec.defaultValue : (sec.min != null ? sec.min : 1));
     var label = document.createElement('div');
     label.className = 'lr-slider-val';
     var unit = sec.unit || '';
-    function fmt(v) { return v + (unit ? ' ' + unit : ''); }
+    function fmt(v) {
+      var core = (sec.zeroLabel && +v === 0) ? sec.zeroLabel : v + (unit ? ' ' + unit : '');
+      return sec.label ? sec.label + ' · ' + core : core;
+    }
+    function setPct() {
+      var mn = +input.min, mx = +input.max, v = +input.value;
+      input.style.setProperty('--pct', (mx > mn ? ((v - mn) / (mx - mn) * 100) : 50) + '%');
+    }
     label.textContent = fmt(input.value);
+    setPct();
+    // External-sync hook: lets programmatic changes (e.g. auto-slab on blend-mode
+    // select) update this slider's value + label without re-rendering the sidebar.
+    input.dataset.lrFn = sec.fn || '';
+    input._lrSync = function (v) { input.value = v; label.textContent = fmt(v); setPct(); };
     input.oninput = function () {
       label.textContent = fmt(input.value);
+      setPct();
       if (sec.fn) {
         var f = LR_FUNCS[sec.fn];
         if (typeof f === 'function') f(+input.value);
@@ -3403,10 +4042,11 @@
       sec.presets.forEach(function (v) {
         var p = document.createElement('button');
         p.className = 'lr-slider-preset';
-        p.textContent = v + (unit ? unit : '');
+        p.textContent = (sec.zeroLabel && +v === 0) ? 'Gốc' : v + (unit ? unit : '');
         p.onclick = function () {
           input.value = v;
           label.textContent = fmt(v);
+          setPct();
           if (sec.fn) {
             var f = LR_FUNCS[sec.fn];
             if (typeof f === 'function') f(+v);
@@ -3502,6 +4142,12 @@
       var input = document.createElement('input');
       input.type = 'checkbox';
       if (it.defaultChecked) input.checked = true;
+      // Live state getter — keeps the checkbox truthful across sidebar re-renders
+      // (e.g. overlay hidden via the toolbar Info ▾ dropdown).
+      if (it.getCheckedFn) {
+        var g = LR_FUNCS[it.getCheckedFn];
+        if (typeof g === 'function') { try { input.checked = !!g(); } catch (e) {} }
+      }
       input.onchange = function () {
         // Pass the new check state as the function arg so the wired
         // function can act as an idempotent setter rather than a flipper.
@@ -3518,24 +4164,133 @@
     return wrap;
   }
 
+  // Demo-style cine driven DIRECTLY through OHIF's cineService — required since
+  // the stock per-viewport CinePlayer bar is hidden by CSS. Note: the toggleCine
+  // COMMAND only flips isCineEnabled (it shows/hides the stock bar, never plays);
+  // actual playback = cineService.setCine({ id, isPlaying, frameRate }).
+  var _cineFps = 24;
+  function _activeVpId() {
+    try { return window.services.viewportGridService.getState().activeViewportId; } catch (e) { return null; }
+  }
+  function _cineState(vpId) {
+    try {
+      var st = window.services.cineService.getState() || {};
+      var c = (st.cines && st.cines[vpId]) || {};
+      return { enabled: !!st.isCineEnabled, playing: !!c.isPlaying, frameRate: c.frameRate || _cineFps };
+    } catch (e) { return { enabled: false, playing: false, frameRate: _cineFps }; }
+  }
+  // Toggle playback on the active viewport. Returns the new playing state.
+  function cineTogglePlay() {
+    var cs = window.services && window.services.cineService;
+    var vpId = _activeVpId();
+    if (!cs || !vpId || typeof cs.setCine !== 'function') {
+      runCmd('toggleCine'); // last-resort fallback (stock bar is hidden, but keep cine state sane)
+      return false;
+    }
+    var st = _cineState(vpId);
+    try {
+      if (st.playing) {
+        cs.setCine({ id: vpId, isPlaying: false, frameRate: st.frameRate });
+        return false;
+      }
+      var play = function () { cs.setCine({ id: vpId, isPlaying: true, frameRate: _cineFps }); };
+      if (st.enabled) {
+        play();
+      } else {
+        // First-ever play: enabling mounts the per-viewport cine effect on the
+        // NEXT React render — a setCine fired in the same tick is swallowed.
+        // Defer the play command, then re-assert once in case 120ms was short.
+        cs.setIsCineEnabled && cs.setIsCineEnabled(true);
+        setTimeout(play, 120);
+      }
+      setTimeout(function () {
+        var s2 = _cineState(vpId);
+        if (!s2.playing) play(); // safety re-assert (no-op if already running)
+      }, 450);
+      return true;
+    } catch (e) {
+      console.warn('[Medisync sidebar] cineTogglePlay failed', e);
+      return st.playing;
+    }
+  }
+  // Step the ACTIVE viewport one image forward/back. The old buttons ran
+  // increment/decrementActiveViewport, which in OHIF maps to
+  // changeActiveViewport — it cycles PANE FOCUS, never scrolls images
+  // (a no-op in a 1x1 layout). Drive cornerstone directly instead.
+  function cineStep(delta) {
+    try {
+      var vpId = _activeVpId();
+      if (!vpId) return;
+      var engines = (window.cornerstone && window.cornerstone.getRenderingEngines && window.cornerstone.getRenderingEngines()) || [];
+      for (var i = 0; i < engines.length; i++) {
+        var vp; try { vp = engines[i].getViewport(vpId); } catch (e) {}
+        if (!vp) continue;
+        if (typeof vp.getCurrentImageIdIndex === 'function' && typeof vp.setImageIdIndex === 'function') {
+          var ids = (typeof vp.getImageIds === 'function' && vp.getImageIds()) || [];
+          var idx = vp.getCurrentImageIdIndex() + delta;
+          if (ids.length) idx = Math.max(0, Math.min(ids.length - 1, idx));
+          vp.setImageIdIndex(idx);
+          return;
+        }
+        // Volume viewports (MPR) have no image stack — use cornerstone's scroll util.
+        var u = window.cornerstone.utilities;
+        if (u && typeof u.scroll === 'function') { u.scroll(vp, { delta: delta }); return; }
+      }
+    } catch (e) { console.warn('[Medisync sidebar] cineStep failed', e); }
+  }
+
+  // Stop playback on the active viewport (no-op when not playing). Used when
+  // the user switches series: keeping the old clip running over a freshly
+  // loaded series is disorienting, so a series change resets cine to paused.
+  function cineStop(vpId) {
+    try {
+      var cs = window.services && window.services.cineService;
+      if (!cs || typeof cs.setCine !== 'function') return;
+      var id = vpId || _activeVpId();
+      if (!id) return;
+      var st = _cineState(id);
+      if (st.playing) cs.setCine({ id: id, isPlaying: false, frameRate: st.frameRate });
+    } catch (e) {}
+  }
+
+  // Exposed for the medisyncCineToggle command (Shift+P hotkey, registered in extras).
+  window.MedisyncCineToggle = function () { return cineTogglePlay(); };
+
+  // Change FPS without interrupting playback state.
+  function cineSetFps(v) {
+    _cineFps = +v || 24;
+    var cs = window.services && window.services.cineService;
+    var vpId = _activeVpId();
+    if (cs && vpId && typeof cs.setCine === 'function') {
+      try {
+        var st = _cineState(vpId);
+        cs.setCine({ id: vpId, isPlaying: st.playing, frameRate: _cineFps });
+        return;
+      } catch (e) {}
+    }
+    runCmd('setCineFrameRate', { framesPerSecond: _cineFps });
+  }
+
   function buildCine() {
+    var box = document.createElement('div');
+    box.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
     var bar = document.createElement('div');
     bar.className = 'lr-cine-bar';
-    var prev = document.createElement('button'); prev.className = 'lr-cine-btn'; prev.innerHTML = svgIcon('rotateCCW'); prev.title = 'Image trước'; prev.onclick = function () { runCmd('decrementActiveViewport'); };
-    var play = document.createElement('button'); play.className = 'lr-cine-btn'; play.innerHTML = svgIcon('play');      play.title = 'Cine play/pause'; play.onclick = function () { runCmd('toggleCine'); };
-    var next = document.createElement('button'); next.className = 'lr-cine-btn'; next.innerHTML = svgIcon('rotateCW');  next.title = 'Image sau';   next.onclick = function () { runCmd('incrementActiveViewport'); };
-    var fps  = document.createElement('select');
-    [10, 15, 24, 30, 60].forEach(function (v) {
-      var opt = document.createElement('option'); opt.value = v; opt.textContent = v + ' FPS'; fps.appendChild(opt);
-    });
-    fps.value = 24;
-    fps.onchange = function () {
-      try {
-        window.commandsManager.run({ commandName: 'setCineFrameRate', commandOptions: { framesPerSecond: +fps.value }, context: 'CORNERSTONE' });
-      } catch (e) { /* may not exist; ignore */ }
-    };
-    bar.appendChild(prev); bar.appendChild(play); bar.appendChild(next); bar.appendChild(fps);
-    return bar;
+    var prev = document.createElement('button'); prev.className = 'lr-cine-btn lr-cine-step'; prev.innerHTML = svgIcon('stepPrev'); prev.title = 'Ảnh trước'; prev.onclick = function () { cineStep(-1); };
+    var play = document.createElement('button'); play.className = 'lr-cine-play';
+    var playing = _cineState(_activeVpId()).playing; // truthful initial state
+    function playLabel() { play.innerHTML = svgIcon('play') + '<span>' + (playing ? 'Tạm dừng' : 'Phát') + '</span>'; }
+    playLabel();
+    play.onclick = function () { playing = cineTogglePlay(); playLabel(); };
+    var next = document.createElement('button'); next.className = 'lr-cine-btn lr-cine-step'; next.innerHTML = svgIcon('stepNext'); next.title = 'Ảnh sau'; next.onclick = function () { cineStep(1); };
+    prev.disabled = next.disabled = playing; // stepping mid-playback is meaningless
+    bar.appendChild(prev); bar.appendChild(play); bar.appendChild(next);
+    box.appendChild(bar);
+    box.appendChild(buildSlider({
+      label: 'Tốc độ', min: 1, max: 60, step: 1, defaultValue: 24, unit: 'fps',
+      fn: 'setCineFps',
+    }));
+    return box;
   }
 
   function runCmd(name, opts) {
@@ -3549,26 +4304,64 @@
     return [];
   }
 
+  var SEC_CARET = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
+  // Default section-head icon per section type (demo-parity); sec.icon overrides.
+  var SEC_TYPE_ICON = { wl: 'sun', pills: 'sliders', layout: 'rect', checks: 'sync', cine: 'play', slider: 'sliders', placeholder: 'info' };
+
   function buildSection(sec) {
     var wrap = document.createElement('div');
     wrap.className = 'lr-sec';
+
+    // Clickable header (collapse/expand). Keeps .lr-sec-title for styling/back-compat.
+    var head = document.createElement('button');
+    head.className = 'lr-sec-head';
+    head.type = 'button';
     var t = document.createElement('div');
     t.className = 'lr-sec-title';
-    t.textContent = sec.title;
-    wrap.appendChild(t);
+    var icoName = sec.icon || SEC_TYPE_ICON[sec.type];
+    if (icoName && ICONS[icoName]) {
+      var ico = document.createElement('span');
+      ico.className = 'lr-sec-ico';
+      ico.innerHTML = svgIcon(icoName);
+      t.appendChild(ico);
+    }
+    t.appendChild(document.createTextNode(sec.title));
+    var caret = document.createElement('span');
+    caret.className = 'lr-sec-caret';
+    caret.innerHTML = SEC_CARET;
+    head.appendChild(t);
+    head.appendChild(caret);
+    wrap.appendChild(head);
+
+    var bodyWrap = document.createElement('div');
+    bodyWrap.className = 'lr-sec-body';
     var body;
     var pillItems = sec.dynamicItems ? resolveDynamicPills(sec.dynamicItems) : sec.items;
     if (sec.type === 'pills')        body = buildPills(pillItems, sec.cols);
+    else if (sec.type === 'wl')      body = buildWLSection(sec);
     else if (sec.type === 'layout')  body = buildLayoutRow(sec.items);
     else if (sec.type === 'checks')  body = buildChecks(sec.items);
     else if (sec.type === 'cine')    body = buildCine();
     else if (sec.type === 'slider')  body = buildSlider(sec);
     else if (sec.type === 'placeholder') body = buildPlaceholder(sec);
-    if (body) wrap.appendChild(body);
+    if (body) bodyWrap.appendChild(body);
+    // Optional trailing slider inside the same section (demo's HIỂN THỊ has
+    // checkboxes + an overlay-opacity slider in one block).
+    if (sec.extraSlider) bodyWrap.appendChild(buildSlider(sec.extraSlider));
     if (sec.hint) {
       var h = document.createElement('div'); h.className = 'lr-sec-hint'; h.textContent = sec.hint;
-      wrap.appendChild(h);
+      bodyWrap.appendChild(h);
     }
+    wrap.appendChild(bodyWrap);
+
+    // Persist collapsed state per section title.
+    var key = 'lrsec:' + sec.title;
+    try { if (localStorage.getItem(key) === '1') wrap.classList.add('lr-collapsed'); } catch (e) {}
+    head.onclick = function () {
+      var collapsed = wrap.classList.toggle('lr-collapsed');
+      try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch (e) {}
+    };
     return wrap;
   }
 
@@ -3580,6 +4373,21 @@
       document.body.appendChild(sb);
     }
     sb.innerHTML = '';
+
+    // Panel header (demo-parity): icon + title, ✕ hides the panel when floating.
+    var head = document.createElement('div');
+    head.className = 'lr-sb-head';
+    head.innerHTML = '<span class="lr-sb-title">' + svgIcon('sliders') + ' ĐIỀU KHIỂN</span>';
+    if (uiPrefs.right === 'floating') {
+      var x = document.createElement('button');
+      x.className = 'lr-sb-x';
+      x.title = 'Ẩn bảng điều khiển';
+      x.innerHTML = svgIcon('cross-x');
+      x.onclick = function () { uiPrefs.right = 'hidden'; saveUIPrefs(); applyUIPrefs(); };
+      head.appendChild(x);
+    }
+    sb.appendChild(head);
+
     // Modality MG always gets the Mammo sidebar — overrides any mode tab state
     var modeKey = currentModality === 'MG' ? 'mammo' : currentMode;
     var def = SIDEBARS[modeKey] || SIDEBAR_2D;
@@ -3704,6 +4512,7 @@
   function switchMode(mode) {
     if (mode === 'mpr' || mode === '3d') _volumeModeEntries++;
     registerCustomProtocols();
+    stopOrbit(); // orbit never survives a mode change
     var leavingVolumeMode = (currentMode === 'mpr' || currentMode === '3d');
     // 2D-after-volume rendering bleed is unfixable at the cornerstone /
     // OHIF API level (probed via spike-2d-bleed.js: setPresentations,
@@ -3778,7 +4587,7 @@
       // viewports are mounted. Retry several times since OHIF's React mount is
       // async and volume3d takes longer to initialize than orthographic.
       [800, 2000, 4000, 8000].forEach(function (ms) {
-        setTimeout(function () { injectPlanePickers(); injectOrientCubes(); }, ms);
+        setTimeout(function () { injectPlanePickers(); injectOrientCubes(); enableReferenceLines(); }, ms);
       });
       // Auto-recover from Intel UHD ANGLE first-render shader race: detect
       // all-black canvas after volume load and silently reload once.
@@ -3854,6 +4663,365 @@
   }
 
   // ============================================================
+  // Custom left "Loạt ảnh" panel (replaces OHIF StudyBrowser)
+  // Lists series as cards (DICOMweb-rendered thumbnails); click → load into
+  // active viewport via viewportGridService. OHIF StudyBrowser is hidden via CSS
+  // (kept in DOM so OHIF internal state is untouched).
+  // ============================================================
+  var LEFT_PANEL_ID = 'medisync-left-panel';
+  var LR_UI_VERSION = 'ui-wrap-v32'; // bump on UI changes to confirm live build
+  var _leftCollapsed = false;
+  try { _leftCollapsed = localStorage.getItem('lr-left-collapsed') === '1'; } catch (e) {}
+  var _leftSig = '';
+
+  function _lpEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function _lpDate(d) { d = String(d || ''); return d.length >= 8 ? d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8) : d; }
+
+  function _lpDisplaySets() {
+    var dss = window.services && window.services.displaySetService;
+    var sets = (dss && dss.getActiveDisplaySets && dss.getActiveDisplaySets()) || [];
+    return sets.filter(function (d) { return d && d.Modality && (d.images || d.instances); });
+  }
+
+  // Build the WADO-RS rendered-thumbnail URL for a display set's middle image.
+  // Derive it from the cornerstone imageId (reliable — same source the rest of
+  // the file parses) rather than a possibly-missing SOPInstanceUID field.
+  function _lpRepImage(ds) {
+    var arr = (ds.images && ds.images.length) ? ds.images
+            : (ds.instances && ds.instances.length) ? ds.instances : [];
+    if (!arr.length) return null;
+    return arr[Math.floor(arr.length / 2)] || arr[0];
+  }
+
+  // Reliable imageIds for a display set — exactly how OHIF's StudyBrowser does it:
+  //   dataSource.getImageIdsForDisplaySet(ds) → pick the middle one.
+  function _lpImageIds(ds) {
+    try {
+      var em = window.extensionManager;
+      var src = em && em.getActiveDataSource && em.getActiveDataSource();
+      src = Array.isArray(src) ? src[0] : src;
+      if (src && typeof src.getImageIdsForDisplaySet === 'function') {
+        return src.getImageIdsForDisplaySet(ds) || [];
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  // Explicit VOI window for the thumbnail request. Orthanc's DICOMweb /rendered
+  // does NOT apply the file's WindowCenter/Width by default (it auto-stretches
+  // min/max), so paired recons (lung vs mediastinum W/L) came out looking alike.
+  // Read the embedded W/L off the series' middle image and pass it explicitly.
+  function _lpThumbWindowParam(ds) {
+    try {
+      var o = _lpRepImage(ds);
+      if (!o) return '';
+      var m = o.metadata || o.metaData || o;
+      var w = o.WindowWidth != null ? o.WindowWidth : m.WindowWidth;
+      var c = o.WindowCenter != null ? o.WindowCenter : m.WindowCenter;
+      if (Array.isArray(w)) w = w[0];
+      if (Array.isArray(c)) c = c[0];
+      w = parseFloat(w); c = parseFloat(c);
+      if (isFinite(w) && isFinite(c) && w > 0) return '&window=' + c + ',' + w + ',linear';
+    } catch (e) {}
+    return '';
+  }
+
+  function _lpThumbURL(ds) {
+    // Middle imageId of the series (OHIF StudyBrowser convention) → its WADO-RS
+    // instance, rendered with the series' own embedded W/L. Mid-series anatomy
+    // is the most representative frame (first slices of paired recons match).
+    var win = _lpThumbWindowParam(ds);
+    var ids = _lpImageIds(ds);
+    if (ids.length) {
+      var rep = ids[Math.floor(ids.length / 2)];
+      if (typeof rep === 'string') {
+        var base = rep.replace(/^wadors:/, '').split('?')[0].replace(/\/frames\/.*$/, '');
+        if (/\/studies\/.+\/series\/.+\/instances\/.+/.test(base)) {
+          return base + '/rendered?viewport=160,160' + win;
+        }
+      }
+    }
+    // Fallback: series-level rendered (uses UIDs always present on the display set).
+    var root = (window.MEDISYNC_DICOMWEB_ROOT || '').replace(/\/+$/, '');
+    if (root && ds.StudyInstanceUID && ds.SeriesInstanceUID) {
+      return root + '/studies/' + ds.StudyInstanceUID + '/series/' + ds.SeriesInstanceUID + '/rendered?viewport=160,160' + win;
+    }
+    return null;
+  }
+
+  function _lpLoadThumb(imgEl, ds) {
+    var url = _lpThumbURL(ds);
+    if (!url) { imgEl.parentElement && imgEl.parentElement.classList.add('lr-lp-noimg'); return; }
+    // Go through window.fetch so medisync-auth's interceptor adds the JWT header
+    // (an <img src> would bypass it and fail once auth is enabled).
+    fetch(url, { headers: { Accept: 'image/jpeg' } })
+      .then(function (r) { return r.ok ? r.blob() : null; })
+      .then(function (b) {
+        if (b) imgEl.src = URL.createObjectURL(b);
+        else imgEl.parentElement && imgEl.parentElement.classList.add('lr-lp-noimg');
+      })
+      .catch(function () { imgEl.parentElement && imgEl.parentElement.classList.add('lr-lp-noimg'); });
+  }
+
+  function _lpPatientMeta() {
+    var sets = _lpDisplaySets();
+    var ds = sets[0]; if (!ds) return null;
+    var img = (ds.images && ds.images[0]) || (ds.instances && ds.instances[0]) || {};
+    var m = img.metadata || img;
+    function pn(v) { return v && typeof v === 'object' ? (v.Alphabetic || '') : (v || ''); }
+    return {
+      name: pn(m.PatientName) || ds.PatientName || '—',
+      id: m.PatientID || '',
+      sex: m.PatientSex || '',
+      modality: ds.Modality || '',
+      studyDesc: ds.StudyDescription || m.StudyDescription || '',
+      studyDate: ds.StudyDate || m.StudyDate || '',
+    };
+  }
+
+  function _lpActiveDsUID() {
+    try {
+      var grid = window.services.viewportGridService.getState();
+      var vp = grid.viewports.get ? grid.viewports.get(grid.activeViewportId) : grid.viewports[grid.activeViewportId];
+      return vp && vp.displaySetInstanceUIDs && vp.displaySetInstanceUIDs[0];
+    } catch (e) { return null; }
+  }
+
+  function _lpLoadSeries(dsUID) {
+    try {
+      var vgs = window.services.viewportGridService;
+      var activeId = vgs.getState().activeViewportId;
+      if (!activeId) return;
+      cineStop(activeId); // series switch resets cine to paused
+      stopOrbit();
+      vgs.setDisplaySetsForViewports([{ viewportId: activeId, displaySetInstanceUIDs: [dsUID] }]);
+      setTimeout(_lpUpdateSelection, 150);
+    } catch (e) { console.warn('[Medisync left] load series failed', e); }
+  }
+
+  function _lpUpdateSelection() {
+    var p = document.getElementById(LEFT_PANEL_ID);
+    if (!p || _leftCollapsed) return;
+    var active = _lpActiveDsUID();
+    p.querySelectorAll('.lr-lp-series').forEach(function (c) {
+      c.classList.toggle('sel', c.getAttribute('data-ds') === active);
+    });
+  }
+
+  function renderLeftPanel() {
+    var p = document.getElementById(LEFT_PANEL_ID);
+    if (!p) { p = document.createElement('div'); p.id = LEFT_PANEL_ID; document.body.appendChild(p); }
+    document.documentElement.setAttribute('data-lr-left', _leftCollapsed ? 'collapsed' : 'open');
+    p.className = _leftCollapsed ? 'lr-collapsed' : '';
+    p.innerHTML = '';
+    _leftSig = _lpDisplaySets().map(function (d) { return d.displaySetInstanceUID; }).join(',');
+
+    if (_leftCollapsed) {
+      var ex = document.createElement('button');
+      ex.className = 'lr-lp-expand'; ex.title = 'Mở danh sách loạt ảnh';
+      ex.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+      ex.onclick = function () { _leftCollapsed = false; try { localStorage.setItem('lr-left-collapsed', '0'); } catch (e) {} renderLeftPanel(); };
+      p.appendChild(ex);
+      var cl = document.createElement('div'); cl.className = 'lr-lp-collabel'; cl.textContent = 'LOẠT ẢNH';
+      p.appendChild(cl);
+      return;
+    }
+
+    var head = document.createElement('div'); head.className = 'lr-lp-head';
+    head.innerHTML = '<span class="lr-lp-title">LOẠT ẢNH <span class="lr-lp-ver">' + LR_UI_VERSION + '</span></span>';
+    var col = document.createElement('button'); col.className = 'lr-lp-collapse'; col.title = 'Thu gọn';
+    col.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+    col.onclick = function () { _leftCollapsed = true; try { localStorage.setItem('lr-left-collapsed', '1'); } catch (e) {} renderLeftPanel(); };
+    head.appendChild(col); p.appendChild(head);
+
+    var pm = _lpPatientMeta();
+    if (pm) {
+      var meta = document.createElement('div'); meta.className = 'lr-lp-meta';
+      meta.innerHTML = _lpMetaHTML(pm);
+      p.appendChild(meta);
+    }
+
+    var list = document.createElement('div'); list.className = 'lr-lp-list';
+    var sets = _lpDisplaySets();
+    var active = _lpActiveDsUID();
+    if (!sets.length) {
+      list.innerHTML = '<div class="lr-lp-empty">Đang tải loạt ảnh…</div>';
+    } else {
+      sets.forEach(function (ds) {
+        var count = ds.numImageFrames || (ds.images ? ds.images.length : (ds.instances ? ds.instances.length : 0));
+        var card = document.createElement('button');
+        card.className = 'lr-lp-series' + (ds.displaySetInstanceUID === active ? ' sel' : '');
+        card.setAttribute('data-ds', ds.displaySetInstanceUID);
+        card.innerHTML =
+          '<span class="lr-lp-thumb"><img alt=""><span class="lr-lp-thumbno">' + count + '</span></span>' +
+          '<span class="lr-lp-sinfo">' +
+            '<span class="lr-lp-sno">#' + (ds.SeriesNumber != null ? ds.SeriesNumber : '-') +
+              ' <span class="lr-lp-smod">' + _lpEsc(ds.Modality || '') + '</span></span>' +
+            '<span class="lr-lp-sdesc2">' + _lpEsc(ds.SeriesDescription || '(không mô tả)') + '</span>' +
+            '<span class="lr-lp-scount">' + count + ' ảnh</span>' +
+          '</span>';
+        card.onclick = function () { _lpLoadSeries(ds.displaySetInstanceUID); };
+        list.appendChild(card);
+        _lpLoadThumb(card.querySelector('img'), ds);
+      });
+    }
+    p.appendChild(list);
+
+    var prior = document.createElement('button'); prior.className = 'lr-lp-prior';
+    prior.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Ca chụp cũ';
+    prior.onclick = function () { if (typeof window.MedisyncToggleTimeline === 'function') window.MedisyncToggleTimeline(); };
+    p.appendChild(prior);
+  }
+
+  // Patient meta block markup. Anonymize = text replacement (per spec): name
+  // becomes "Bệnh nhân ẩn danh", patient ID is masked. Desc/date stay.
+  function _lpMetaHTML(pm) {
+    var anon = isAnonymizeOn();
+    var nameHtml = anon
+      ? 'Bệnh nhân ẩn danh'
+      : _lpEsc(pm.name) + (pm.sex ? ' · ' + _lpEsc(pm.sex) : '');
+    var idHtml = pm.id ? (anon ? '••••••••' : _lpEsc(pm.id)) : '';
+    return '<div class="lr-lp-patient">' + nameHtml + '</div>' +
+      (idHtml ? '<div class="lr-lp-sub">' + idHtml + '</div>' : '') +
+      (pm.modality ? '<span class="lr-lp-modtag">' + _lpEsc(pm.modality) + '</span>' : '') +
+      (pm.studyDesc ? '<div class="lr-lp-sdesc">' + _lpEsc(pm.studyDesc) + '</div>' : '') +
+      (pm.studyDate ? '<div class="lr-lp-sub">' + _lpDate(pm.studyDate) + '</div>' : '');
+  }
+
+  // In-place refresh of ONLY the patient meta block — used by the anonymize
+  // toggle so the series list (and its thumbnails) is not torn down/re-fetched.
+  function updateLeftPanelMeta() {
+    var p = document.getElementById(LEFT_PANEL_ID);
+    if (!p || _leftCollapsed) return;
+    var meta = p.querySelector('.lr-lp-meta');
+    var pm = _lpPatientMeta();
+    if (meta && pm) meta.innerHTML = _lpMetaHTML(pm);
+  }
+
+  // Belt-and-suspenders: hide OHIF's own left study panel via JS in case the
+  // CSS selector doesn't match this build's exact class list. The left panel is
+  // the side-panel wrapper that is NOT the (already-hidden) right one (ml-2).
+  function _hideOhifLeftPanel() {
+    try {
+      document.querySelectorAll('div.transition-all.duration-300.bg-black').forEach(function (d) {
+        if (d.id === LEFT_PANEL_ID) return;
+        if (d.classList.contains('ml-2')) return; // right panel — handled separately
+        if (d.style.display !== 'none') d.style.display = 'none';
+      });
+    } catch (e) {}
+  }
+
+  // JS backstop for the CSS [class*="CinePlayer"] hide rule — covers bars whose
+  // class list the CSS misses (e.g. rendered into a portal after our style ran).
+  function _hideStockCineBars() {
+    try {
+      var hid = 0;
+      function hide(d) { if (d && d.style.display !== 'none') { d.style.display = 'none'; hid++; } }
+      document.querySelectorAll('[class*="CinePlayer"], [class*="cine-player"]').forEach(hide);
+      // Positioning wrapper the bundle mounts the bar into (bottom-center of each pane).
+      document.querySelectorAll('div.absolute.bottom-3').forEach(function (d) {
+        if (d.className.indexOf('left-1/2') >= 0) hide(d);
+      });
+      // Content fallback: any small floating box whose text is exactly the FPS stepper.
+      document.querySelectorAll('div').forEach(function (d) {
+        if (d.childElementCount && d.textContent && /^\s*\d+\s*FPS\s*$/.test(d.textContent)) {
+          var host = d.closest('div.absolute') || d.parentElement;
+          hide(host);
+        }
+      });
+      if (hid) console.log('[Medisync] hid', hid, 'stock cine element(s)');
+    } catch (e) {}
+  }
+
+  // Anonymize the React-owned corner overlays by TEXT replacement (not blur):
+  // find leaf nodes whose text matches the patient name / ID and swap them.
+  // Originals are kept in data-lr-orig so un-ticking restores immediately;
+  // the 1s sweep re-applies after React re-renders (slice change, etc.).
+  function _normName(s) {
+    return String(s || '').replace(/[^0-9A-Za-zÀ-ỹ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  }
+  function _anonOverlaySweep() {
+    try {
+      var on = isAnonymizeOn();
+      if (!on) {
+        document.querySelectorAll('[data-lr-orig]').forEach(function (el) {
+          el.textContent = el.getAttribute('data-lr-orig');
+          el.removeAttribute('data-lr-orig');
+        });
+        return;
+      }
+      var pm = _lpPatientMeta();
+      if (!pm) return;
+      var nameN = pm.name && pm.name !== '—' ? _normName(pm.name) : '';
+      var pid = pm.id ? String(pm.id) : '';
+      document.querySelectorAll('[class*="viewport-overlay"] *, .ViewportOverlay *').forEach(function (el) {
+        if (el.childElementCount) return; // leaves only
+        var t = (el.textContent || '').trim();
+        if (!t || el.getAttribute('data-lr-orig')) return;
+        var tN = _normName(t);
+        if (nameN && tN && (tN === nameN || (tN.length > 6 && nameN.indexOf(tN) >= 0) || (nameN.length > 6 && tN.indexOf(nameN) >= 0))) {
+          el.setAttribute('data-lr-orig', el.textContent);
+          el.textContent = 'Bệnh nhân ẩn danh';
+        } else if (pid && t.indexOf(pid) >= 0) {
+          el.setAttribute('data-lr-orig', el.textContent);
+          el.textContent = t.split(pid).join('••••••••');
+        }
+      });
+    } catch (e) {}
+  }
+
+  // Keep the sidebar W/L sliders honest: mirror the active viewport's live VOI
+  // every tick (covers mouse W/L drags, toolbar presets, series/viewport
+  // switches, and the too-early initial seed). Skips while the user is
+  // actively dragging that slider (:active).
+  function _syncWLSlidersUI() {
+    try {
+      var wl = getCurrentWL();
+      if (!wl) return;
+      [['setWLWidth', wl.ww], ['setWLCenter', wl.wc]].forEach(function (p) {
+        var el = document.querySelector('#medisync-sidebar input[type="range"][data-lr-fn="' + p[0] + '"]');
+        if (!el || typeof el._lrSync !== 'function') return;
+        if (el.matches(':active')) return; // user mid-drag
+        if (+el.value !== Math.round(p[1])) el._lrSync(Math.round(p[1]));
+      });
+    } catch (e) {}
+  }
+
+  // Mirror real cine state into the sidebar UI: Play/Pause label (can drift
+  // when cine is toggled from the toolbar button or Shift+P) and the two
+  // step buttons, which are disabled while playing.
+  function _syncCineUI() {
+    try {
+      var play = document.querySelector('#medisync-sidebar .lr-cine-play');
+      if (!play) return;
+      var playing = _cineState(_activeVpId()).playing;
+      var span = play.querySelector('span');
+      var want = playing ? 'Tạm dừng' : 'Phát';
+      if (span && span.textContent !== want) span.textContent = want;
+      document.querySelectorAll('#medisync-sidebar .lr-cine-step').forEach(function (b) {
+        if (b.disabled !== playing) b.disabled = playing;
+      });
+    } catch (e) {}
+  }
+
+  function watchLeftPanel() {
+    setInterval(function () {
+      _hideOhifLeftPanel();
+      _hideStockCineBars();
+      _anonOverlaySweep();
+      if (!document.getElementById(LEFT_PANEL_ID)) { renderLeftPanel(); return; }
+      var sig = _lpDisplaySets().map(function (d) { return d.displaySetInstanceUID; }).join(',');
+      if (sig !== _leftSig) renderLeftPanel();
+      else _lpUpdateSelection();
+    }, 1000);
+    // W/L slider mirroring gets its own fast lane (200ms): after a series
+    // switch the new VOI exists as soon as the first image renders, and the
+    // shared 1s tick on top of that load time read as "lag". The sync is pure
+    // in-memory reads (grid state + viewport props) — cheap at this rate.
+    setInterval(function () { if (!document.hidden) { _syncWLSlidersUI(); _syncCineUI(); } }, 200);
+  }
+
+  // ============================================================
   // Persistence — re-inject if React unmounts our toolbar
   // ============================================================
   function ensureToolbar() {
@@ -3862,6 +5030,9 @@
     }
     if (!document.getElementById('medisync-sidebar')) {
       renderSidebar();
+    }
+    if (!document.getElementById(LEFT_PANEL_ID)) {
+      renderLeftPanel();
     }
   }
 
@@ -4143,6 +5314,7 @@
   }
 
   function loadStudyInPlace(studyUID, restore) {
+    stopOrbit(); // never carry auto-rotation across studies
     return new Promise(function (resolve, reject) {
       if (!studyUID) return reject(new Error('missing studyUID'));
       var url = new URL(window.location.href);
@@ -4221,15 +5393,19 @@
   // Boot
   // ============================================================
   function boot() {
+    console.log('[Medisync UI] build', LR_UI_VERSION);
     injectCSS();
     renderToolbar();
     renderSidebar();
+    renderLeftPanel();
     startMutationObserver();
     watchModality();
+    watchLeftPanel();
+    subscribeReferenceLines();
     subscribeMammoOverlays();
     subscribeKeyImageOverlay();
     // Initial key-image fetch — re-runs on lr:loadStudy too (see iframe RPC handler).
-    setTimeout(refreshKeyImages, 1500);
+    if (!LR_STANDALONE) setTimeout(refreshKeyImages, 1500);
 
     // Parent (Teleradiology page) → iframe protocol.
     window.addEventListener('message', function (e) {

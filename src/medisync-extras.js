@@ -319,8 +319,14 @@
     try {
       cm.registerCommand('CORNERSTONE', 'cyclePseudoColor', { commandFn: cyclePseudoColor });
       cm.registerCommand('CORNERSTONE', 'alignImages',      { commandFn: alignImages });
+      // Cine toggle that actually PLAYS (stock CinePlayer bar is hidden; the
+      // toggleCine command only showed/hid that bar). Impl lives in
+      // medisync-toolbar.js, exposed on window. Used by the Shift+P hotkey.
+      cm.registerCommand('CORNERSTONE', 'medisyncCineToggle', { commandFn: function () {
+        if (typeof window.MedisyncCineToggle === 'function') window.MedisyncCineToggle();
+      } });
       cm._medisyncCommandsRegistered = true;
-      console.log('[Medisync] Custom commands registered: cyclePseudoColor, alignImages');
+      console.log('[Medisync] Custom commands registered: cyclePseudoColor, alignImages, medisyncCineToggle');
       return true;
     } catch (e) {
       console.warn('[Medisync] Failed to register commands:', e);
@@ -340,24 +346,24 @@
     p.id = TIMELINE_ID;
     p.style.cssText = [
       'position: fixed',
-      'left: 8px',
-      'bottom: 8px',
-      'width: 220px',
-      'max-height: 40vh',
+      'left: 12px',
+      'bottom: 12px',
+      'width: 280px',
+      'max-height: 44vh',
       'overflow-y: auto',
-      'background: rgba(20,28,36,0.92)',
-      'border: 1px solid #1f2937',
-      'border-radius: 6px',
-      'padding: 8px',
+      'background: var(--lr-panel-2, #18233a)',
+      'border: 1px solid var(--lr-border-2, rgba(148,163,184,0.26))',
+      'border-radius: 14px',
+      'padding: 12px',
       'z-index: 9998',
-      'font-family: system-ui, sans-serif',
+      'font-family: var(--lr-font, system-ui, sans-serif)',
       'font-size: 11px',
-      'color: #cbd5e1',
-      'box-shadow: 0 4px 16px rgba(0,0,0,0.4)',
+      'color: var(--lr-text-2, #9fb0c6)',
+      'box-shadow: 0 18px 48px rgba(0,0,0,0.6)',
     ].join(';');
     p.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
-      '  <strong style="color:#5acce6;font-size:11px;letter-spacing:0.5px;">CA CHỤP CŨ</strong>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '  <strong style="color:var(--lr-accent,#5acce6);font-size:11px;letter-spacing:0.5px;">CA CHỤP CŨ</strong>' +
       '  <button id="medisync-timeline-close" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;">×</button>' +
       '</div>' +
       '<div id="medisync-timeline-body" style="font-size:11px;">Đang tải...</div>';
@@ -400,9 +406,9 @@
           var uid   = (s['0020000D'] && s['0020000D'].Value && s['0020000D'].Value[0]) || '';
           var pretty = date ? (date.slice(0,4)+'-'+date.slice(4,6)+'-'+date.slice(6,8)) : '';
           return '<a href="/viewer?StudyInstanceUIDs=' + uid + '" target="_blank" '
-            + 'style="display:block;padding:6px;margin-bottom:4px;border:1px solid #334155;border-radius:4px;color:#cbd5e1;text-decoration:none;background:#0f172a;">'
-            + '<div style="color:#5acce6;font-weight:600;">' + pretty + ' <span style="float:right;color:#94a3b8;">' + mods + '</span></div>'
-            + '<div style="color:#cbd5e1;margin-top:2px;font-size:10px;">' + desc + '</div>'
+            + 'style="display:block;padding:8px;margin-bottom:6px;border:1px solid var(--lr-border,rgba(148,163,184,0.14));border-radius:9px;color:var(--lr-text-2,#9fb0c6);text-decoration:none;background:#0c1422;">'
+            + '<div style="color:var(--lr-accent,#5acce6);font-weight:600;">' + pretty + ' <span style="float:right;color:#94a3b8;">' + mods + '</span></div>'
+            + '<div style="color:var(--lr-text-2,#9fb0c6);margin-top:2px;font-size:10px;">' + desc + '</div>'
             + '</a>';
         });
         body.innerHTML = rows.join('');
@@ -625,4 +631,14 @@
       setTimeout(refreshTimeline, 1500); // give OHIF time to load the new study
     }
   }, 1000);
+
+  // Public toggle so the custom left panel's "Ca chụp cũ" button can show/hide
+  // the prior-studies timeline (built/owned here in extras).
+  window.MedisyncToggleTimeline = function () {
+    if (!document.getElementById(TIMELINE_ID)) buildTimelinePanel();
+    var p = document.getElementById(TIMELINE_ID);
+    if (!p) return;
+    p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+    if (p.style.display !== 'none') refreshTimeline();
+  };
 })();
