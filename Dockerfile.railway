@@ -14,6 +14,12 @@ COPY src/medisync-runtime.js /usr/share/nginx/html/medisync-runtime.js
 COPY src/medisync-auth.js    /usr/share/nginx/html/medisync-auth.js
 COPY src/medisync-extras.js  /usr/share/nginx/html/medisync-extras.js
 COPY src/medisync-toolbar.js /usr/share/nginx/html/medisync-toolbar.js
+# Self-hosted IBM Plex fonts (Google Fonts is blocked by COEP require-corp).
+COPY src/fonts/ /usr/share/nginx/html/fonts/
+# Neutralize OHIF's caching service worker (it hid our injected JS edits).
+COPY src/sw.js /usr/share/nginx/html/sw.js
+# Self-hosted JSZip for JPEG-zip export (CDN is blocked by COEP require-corp).
+COPY src/jszip.min.js /usr/share/nginx/html/jszip.min.js
 RUN sed -i 's|<head>|<head><script src="/medisync-runtime.js"></script><script src="/medisync-auth.js"></script>|' /usr/share/nginx/html/index.html \
  && sed -i 's|</body>|<script src="/medisync-extras.js"></script><script src="/medisync-toolbar.js"></script></body>|' /usr/share/nginx/html/index.html \
  && sed -i 's|<title>OHIF Viewer</title>|<title>Medisync PACS Viewer</title>|' /usr/share/nginx/html/index.html

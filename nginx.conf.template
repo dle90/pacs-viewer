@@ -26,7 +26,7 @@ server {
 
     # Mutable files (runtime config + injected scripts + index) — never cache, so a
     # redeploy / env change is picked up. Everything else is content-hashed below.
-    location ~ ^/(index\.html|app-config\.js|medisync-runtime\.js|medisync-auth\.js|medisync-extras\.js|medisync-toolbar\.js)$ {
+    location ~ ^/(index\.html|app-config\.js|medisync-runtime\.js|medisync-auth\.js|medisync-extras\.js|medisync-toolbar\.js|sw\.js|init-service-worker\.js)$ {
         add_header Cache-Control "no-cache" always;
         add_header Cross-Origin-Opener-Policy   "same-origin"  always;
         add_header Cross-Origin-Embedder-Policy "require-corp" always;
