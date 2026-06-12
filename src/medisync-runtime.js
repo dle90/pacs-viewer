@@ -7,4 +7,4 @@
 //   dev     -> http://localhost:8080/wado        (pacs-dicomweb-proxy, published)
 //   staging -> https://api-pacs.staging.medisync.vn/wado
 //   prod    -> https://api-pacs.medisync.vn/wado  (or CF Worker edge-cache)
-window.MEDISYNC_DICOMWEB_ROOT = "http://localhost:8080/wado";
+window.MEDISYNC_DICOMWEB_ROOT = "https://pacs-dicomweb-proxy-production.up.railway.app/wado";

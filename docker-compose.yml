@@ -11,8 +11,12 @@ services:
     image: medisync-pacs-viewer
     container_name: medisync-pacs-viewer
     ports:
-      - "3000:8080"
+      - "${VIEWER_PORT:-3000}:8080"
     environment:
       # Browser-reachable DICOMweb endpoint = pacs-dicomweb-proxy (cross-origin).
-      DICOMWEB_ROOT: "http://localhost:8080/wado"
+      # Defaults to the local proxy (PROXY_PORT); the browser hits it from the host,
+      # so changing PROXY_PORT must change this too. Override DICOMWEB_ROOT to point
+      # the local viewer at a remote backend, e.g.:
+      #   DICOMWEB_ROOT=https://pacs-dicomweb-proxy-production.up.railway.app/wado
+      DICOMWEB_ROOT: "${DICOMWEB_ROOT:-http://localhost:${PROXY_PORT:-8080}/wado}"
     restart: unless-stopped
